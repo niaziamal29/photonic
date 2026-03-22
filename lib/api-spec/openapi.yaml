@@ -1,15 +1,20 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Photonics Engine Simulator API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: simulations
+    description: Photonic circuit simulation operations
+  - name: components
+    description: Optical component library
+  - name: builds
+    description: Build configurations
 paths:
   /healthz:
     get:
@@ -24,6 +29,155 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /builds:
+    get:
+      operationId: listBuilds
+      tags: [builds]
+      summary: List all saved builds
+      responses:
+        "200":
+          description: List of builds
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Build"
+    post:
+      operationId: createBuild
+      tags: [builds]
+      summary: Create a new build
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBuildRequest"
+      responses:
+        "201":
+          description: Build created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Build"
+
+  /builds/{buildId}:
+    get:
+      operationId: getBuild
+      tags: [builds]
+      summary: Get a specific build
+      parameters:
+        - name: buildId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Build details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Build"
+        "404":
+          description: Build not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: updateBuild
+      tags: [builds]
+      summary: Update a build
+      parameters:
+        - name: buildId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBuildRequest"
+      responses:
+        "200":
+          description: Updated build
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Build"
+    delete:
+      operationId: deleteBuild
+      tags: [builds]
+      summary: Delete a build
+      parameters:
+        - name: buildId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /builds/{buildId}/simulate:
+    post:
+      operationId: runSimulation
+      tags: [simulations]
+      summary: Run simulation on a build
+      parameters:
+        - name: buildId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Simulation results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulationResult"
+
+  /builds/{buildId}/simulations:
+    get:
+      operationId: listSimulations
+      tags: [simulations]
+      summary: Get simulation history for a build
+      parameters:
+        - name: buildId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Simulation history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SimulationResult"
+
+  /components:
+    get:
+      operationId: listComponentTemplates
+      tags: [components]
+      summary: List all available optical component templates
+      responses:
+        "200":
+          description: Component template library
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ComponentTemplate"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +188,355 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+        - message
+
+    ComponentType:
+      type: string
+      enum:
+        - laser_source
+        - waveguide
+        - beam_splitter
+        - coupler
+        - modulator
+        - photodetector
+        - optical_amplifier
+        - phase_shifter
+        - filter
+        - isolator
+        - circulator
+        - mzi
+        - ring_resonator
+        - grating_coupler
+        - mirror
+
+    ComponentTemplate:
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/ComponentType"
+        label:
+          type: string
+        description:
+          type: string
+        defaultParams:
+          $ref: "#/components/schemas/ComponentParams"
+        parameterSchema:
+          type: object
+          additionalProperties: true
+      required:
+        - type
+        - label
+        - description
+        - defaultParams
+
+    ComponentParams:
+      type: object
+      properties:
+        wavelength:
+          type: number
+          description: Operating wavelength in nm
+        power:
+          type: number
+          description: Optical power in dBm
+        loss:
+          type: number
+          description: Insertion loss in dB
+        splitRatio:
+          type: number
+          description: Power split ratio (0-1)
+        couplingCoeff:
+          type: number
+          description: Coupling coefficient (0-1)
+        length:
+          type: number
+          description: Component length in um
+        neff:
+          type: number
+          description: Effective refractive index
+        alpha:
+          type: number
+          description: Propagation loss in dB/cm
+        gain:
+          type: number
+          description: Gain in dB
+        responsivity:
+          type: number
+          description: Detector responsivity in A/W
+        phaseShift:
+          type: number
+          description: Phase shift in radians
+        bandwidth:
+          type: number
+          description: Bandwidth in GHz
+        extinctionRatio:
+          type: number
+          description: Modulation extinction ratio in dB
+        reflectivity:
+          type: number
+          description: Mirror reflectivity (0-1)
+
+    CircuitComponent:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          $ref: "#/components/schemas/ComponentType"
+        label:
+          type: string
+        x:
+          type: number
+        y:
+          type: number
+        params:
+          $ref: "#/components/schemas/ComponentParams"
+      required:
+        - id
+        - type
+        - label
+        - x
+        - y
+        - params
+
+    Connection:
+      type: object
+      properties:
+        id:
+          type: string
+        fromComponentId:
+          type: string
+        fromPort:
+          type: string
+        toComponentId:
+          type: string
+        toPort:
+          type: string
+      required:
+        - id
+        - fromComponentId
+        - fromPort
+        - toComponentId
+        - toPort
+
+    CircuitLayout:
+      type: object
+      properties:
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/CircuitComponent"
+        connections:
+          type: array
+          items:
+            $ref: "#/components/schemas/Connection"
+      required:
+        - components
+        - connections
+
+    Build:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        targetWavelength:
+          type: number
+          description: Target operating wavelength in nm
+        targetPower:
+          type: number
+          description: Target output power in dBm
+        targetSNR:
+          type: number
+          description: Target signal-to-noise ratio in dB
+        layout:
+          $ref: "#/components/schemas/CircuitLayout"
+        iterationCount:
+          type: integer
+        status:
+          type: string
+          enum: [draft, simulating, converged, needs_revision]
+        equilibriumScore:
+          type: number
+          description: Score 0-100 indicating how close to equilibrium
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - targetWavelength
+        - layout
+        - iterationCount
+        - status
+        - equilibriumScore
+        - createdAt
+        - updatedAt
+
+    CreateBuildRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        targetWavelength:
+          type: number
+        targetPower:
+          type: number
+        targetSNR:
+          type: number
+        layout:
+          $ref: "#/components/schemas/CircuitLayout"
+      required:
+        - name
+        - targetWavelength
+        - layout
+
+    UpdateBuildRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        targetWavelength:
+          type: number
+        targetPower:
+          type: number
+        targetSNR:
+          type: number
+        layout:
+          $ref: "#/components/schemas/CircuitLayout"
+
+    ComponentResult:
+      type: object
+      properties:
+        componentId:
+          type: string
+        label:
+          type: string
+        type:
+          $ref: "#/components/schemas/ComponentType"
+        inputPower:
+          type: number
+        outputPower:
+          type: number
+        phase:
+          type: number
+        wavelength:
+          type: number
+        loss:
+          type: number
+        gain:
+          type: number
+        status:
+          type: string
+          enum: [ok, warning, error]
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/Issue"
+      required:
+        - componentId
+        - label
+        - type
+        - inputPower
+        - outputPower
+        - phase
+        - wavelength
+        - loss
+        - status
+        - issues
+
+    Issue:
+      type: object
+      properties:
+        code:
+          type: string
+        severity:
+          type: string
+          enum: [info, warning, error]
+        message:
+          type: string
+        suggestion:
+          type: string
+        componentId:
+          type: string
+      required:
+        - code
+        - severity
+        - message
+        - suggestion
+
+    SimulationResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        buildId:
+          type: integer
+        iterationNumber:
+          type: integer
+        totalInputPower:
+          type: number
+        totalOutputPower:
+          type: number
+        systemLoss:
+          type: number
+        snr:
+          type: number
+        coherenceLength:
+          type: number
+        wavelength:
+          type: number
+        equilibriumScore:
+          type: number
+          description: Score 0-100
+        componentResults:
+          type: array
+          items:
+            $ref: "#/components/schemas/ComponentResult"
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/Issue"
+        converged:
+          type: boolean
+        suggestions:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - buildId
+        - iterationNumber
+        - totalInputPower
+        - totalOutputPower
+        - systemLoss
+        - snr
+        - coherenceLength
+        - wavelength
+        - equilibriumScore
+        - componentResults
+        - issues
+        - converged
+        - suggestions
+        - createdAt

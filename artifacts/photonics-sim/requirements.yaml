@@ -1,0 +1,21 @@
+packages:
+  "@xyflow/react": "For the visual drag-and-drop circuit builder canvas"
+  "recharts": "For the simulation iteration history charts"
+  "zustand": "For complex global state management between canvas and panels"
+  "framer-motion": "For fluid UI animations and simulation states"
+  "date-fns": "For formatting timestamps on builds and simulations"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility to merge tailwind classes safely"
+
+images:
+  - path: "artifacts/photonics-sim/public/images/tech-bg.png"
+    description: "Dark, moody, scientific grid background with very subtle glowing cyan laser lines intersecting, out of focus, premium 3d render style"
+    aspect_ratio: "16:9"
+  - path: "artifacts/photonics-sim/public/images/empty-state.png"
+    description: "Abstract 3D rendering of an optical lens and laser beam hitting a prism, dark background with cyan and deep blue lighting, cinematic lighting"
+    aspect_ratio: "16:9"
+
+notes:
+  - Using generated Orval hooks from @workspace/api-client-react
+  - Simulating a dark mode by default for the scientific/instrument aesthetic
+  - React Flow (@xyflow/react) requires specific CSS imports which will be included in the components

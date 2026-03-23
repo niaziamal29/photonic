@@ -61,25 +61,25 @@ export default function Dashboard() {
       <main className="flex-1 z-10 p-8 max-w-7xl mx-auto w-full">
         <div className="flex items-end justify-between mb-8">
           <div>
-            <h2 className="text-3xl font-light mb-2">Workspace <span className="font-bold">Initialization</span></h2>
-            <p className="text-muted-foreground font-mono text-sm">Select an existing optical circuit build or initialize a new sequence.</p>
+            <h2 className="text-3xl font-light mb-2">Your <span className="font-bold">Circuits</span></h2>
+            <p className="text-muted-foreground text-sm">Open an existing circuit or create a new one to start designing.</p>
           </div>
 
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="font-mono tracking-wider shadow-[0_0_15px_rgba(0,229,255,0.2)] hover:shadow-[0_0_25px_rgba(0,229,255,0.4)] transition-shadow">
-                <Plus className="w-4 h-4 mr-2" /> NEW BUILD
+              <Button className="shadow-[0_0_15px_rgba(0,229,255,0.2)] hover:shadow-[0_0_25px_rgba(0,229,255,0.4)] transition-shadow">
+                <Plus className="w-4 h-4 mr-2" /> New Circuit
               </Button>
             </DialogTrigger>
             <DialogContent className="glass-panel border-primary/20">
               <DialogHeader>
-                <DialogTitle className="font-mono tracking-widest text-primary flex items-center gap-2">
-                  <Activity className="w-5 h-5" /> INITIALIZE SEQUENCE
+                <DialogTitle className="text-primary flex items-center gap-2">
+                  <Activity className="w-5 h-5" /> New Circuit
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label className="font-mono text-xs text-muted-foreground uppercase">Designation</Label>
+                  <Label className="text-xs text-muted-foreground">Name</Label>
                   <Input 
                     value={newBuildName}
                     onChange={(e) => setNewBuildName(e.target.value)}
@@ -90,13 +90,12 @@ export default function Dashboard() {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="ghost" onClick={() => setIsDialogOpen(false)} className="font-mono">CANCEL</Button>
+                <Button variant="ghost" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
                 <Button 
                   onClick={handleCreate} 
                   disabled={!newBuildName.trim() || createBuildMutation.isPending}
-                  className="font-mono"
                 >
-                  {createBuildMutation.isPending ? 'PROCESSING...' : 'INITIALIZE'}
+                  {createBuildMutation.isPending ? 'Creating...' : 'Create'}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -116,12 +115,12 @@ export default function Dashboard() {
               alt="Empty lab" 
               className="w-64 h-48 object-cover rounded-xl mb-6 opacity-80 mix-blend-screen"
             />
-            <h3 className="text-xl font-mono mb-2">DATABANK EMPTY</h3>
+            <h3 className="text-xl mb-2">No circuits yet</h3>
             <p className="text-muted-foreground text-sm max-w-md text-center mb-6">
-              No simulation configurations found in local storage. Initialize a new build to access the engineering interface.
+              Create your first photonic circuit to start designing and simulating.
             </p>
-            <Button onClick={() => setIsDialogOpen(true)} variant="outline" className="font-mono border-primary/50 text-primary hover:bg-primary/10">
-              INITIALIZE BUILD
+            <Button onClick={() => setIsDialogOpen(true)} variant="outline" className="border-primary/50 text-primary hover:bg-primary/10">
+              Create Your First Circuit
             </Button>
           </div>
         ) : (

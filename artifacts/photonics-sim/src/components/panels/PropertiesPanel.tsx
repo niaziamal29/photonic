@@ -4,11 +4,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Slider } from '@/components/ui/slider';
-import { Settings2, Cpu } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Settings2, Cpu, HelpCircle, Lightbulb } from 'lucide-react';
+import { useEffect } from 'react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Badge } from '@/components/ui/badge';
 
-// Maps parameter names to sensible slider ranges and units
-const PARAM_CONFIG: Record<string, { min: number, max: number, step: number, unit: string }> = {
+const PARAM_CONFIG: Record<string, { min: number; max: number; step: number; unit: string }> = {
   wavelength: { min: 1300, max: 1600, step: 1, unit: 'nm' },
   power: { min: -20, max: 20, step: 0.1, unit: 'dBm' },
   loss: { min: 0, max: 10, step: 0.1, unit: 'dB' },
@@ -28,17 +29,14 @@ const PARAM_CONFIG: Record<string, { min: number, max: number, step: number, uni
 export function PropertiesPanel() {
   const { nodes, selectedNodeId, updateNodeData } = useSimulatorStore();
   const { data: templates } = useListComponentTemplates();
-  
-  const selectedNode = nodes.find(n => n.id === selectedNodeId);
-  const template = templates?.find(t => t.type === selectedNode?.data.type);
 
-  // Initialize missing params from template defaults
+  const selectedNode = nodes.find(n => n.id === selectedNodeId);
+  const template = templates?.find((t: any) => t.type === selectedNode?.data.type) as any;
+
   useEffect(() => {
     if (selectedNode && template) {
       const currentParams = selectedNode.data.params || {};
       const newParams = { ...template.defaultParams, ...currentParams };
-      
-      // Only update if there's actually a diff to avoid infinite loops
       if (JSON.stringify(currentParams) !== JSON.stringify(newParams)) {
         updateNodeData(selectedNode.id, { params: newParams });
       }
@@ -48,59 +46,88 @@ export function PropertiesPanel() {
   if (!selectedNode || !template) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-muted-foreground">
-        <Cpu className="w-12 h-12 mb-4 opacity-20" />
-        <p className="font-mono text-sm">No component selected.</p>
-        <p className="text-xs mt-2 opacity-60">Select a node on the canvas to configure properties.</p>
+        <Cpu className="w-10 h-10 mb-3 opacity-20" />
+        <p className="text-sm font-medium">No component selected</p>
+        <p className="text-xs mt-1 opacity-60">Click on a component in the canvas to see its properties.</p>
       </div>
     );
   }
 
   const params = selectedNode.data.params;
+  const paramDescriptions = template.parameterDescriptions || {};
 
   return (
-    <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-300">
-      <div className="p-4 border-b border-white/5 bg-background/50">
-        <div className="flex items-center gap-2 mb-2 text-primary">
-          <Settings2 className="w-5 h-5" />
-          <h3 className="font-bold text-sm tracking-widest">{selectedNode.data.label}</h3>
+    <div className="flex flex-col h-full">
+      <div className="p-4 border-b border-border bg-background/50">
+        <div className="flex items-center gap-2 mb-2">
+          <Settings2 className="w-4 h-4 text-primary" />
+          <h3 className="font-semibold text-sm">{selectedNode.data.label}</h3>
         </div>
-        <p className="text-xs text-muted-foreground font-mono">{template.description}</p>
+        <p className="text-xs text-muted-foreground leading-relaxed">{template.description}</p>
+
+        {template.knowledge?.tips && (
+          <div className="mt-3 bg-primary/5 border border-primary/20 rounded-md p-2.5 flex gap-2">
+            <Lightbulb className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+            <p className="text-xs text-muted-foreground leading-relaxed">{template.knowledge.tips}</p>
+          </div>
+        )}
       </div>
 
       <ScrollArea className="flex-1 p-4">
-        <div className="space-y-6">
+        <div className="space-y-5">
           {Object.entries(params).map(([key, value]) => {
             const config = PARAM_CONFIG[key] || { min: 0, max: 100, step: 1, unit: '' };
             const numValue = value as number;
+            const desc = paramDescriptions[key];
 
             return (
-              <div key={key} className="space-y-3">
+              <div key={key} className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <Label className="text-xs font-mono font-semibold text-foreground/80 uppercase tracking-wider">
-                    {key}
-                  </Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs font-medium text-foreground capitalize">
+                      {desc?.label || key.replace(/([A-Z])/g, ' $1').trim()}
+                    </Label>
+                    {desc && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="w-3 h-3 text-muted-foreground/50 hover:text-primary cursor-help transition-colors" />
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="max-w-xs">
+                          <p className="text-xs mb-1">{desc.description}</p>
+                          {desc.typicalRange && (
+                            <p className="text-xs text-muted-foreground">Typical range: {desc.typicalRange}</p>
+                          )}
+                          {desc.impact && (
+                            <p className="text-xs text-muted-foreground mt-1">{desc.impact}</p>
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1 bg-background px-2 py-1 rounded border border-border">
-                    <Input 
+                    <Input
                       type="number"
                       value={numValue}
-                      onChange={(e) => updateNodeData(selectedNode.id, { 
-                        params: { ...params, [key]: parseFloat(e.target.value) || 0 } 
+                      onChange={(e) => updateNodeData(selectedNode.id, {
+                        params: { ...params, [key]: parseFloat(e.target.value) || 0 }
                       })}
-                      className="w-16 h-6 p-0 text-right text-xs font-mono bg-transparent border-none focus-visible:ring-0"
+                      className="w-16 h-5 p-0 text-right text-xs bg-transparent border-none focus-visible:ring-0"
                     />
-                    <span className="text-xs text-muted-foreground font-mono">{config.unit}</span>
+                    {config.unit && <span className="text-[10px] text-muted-foreground">{config.unit}</span>}
                   </div>
                 </div>
-                <Slider 
-                  min={config.min} 
-                  max={config.max} 
+                <Slider
+                  min={config.min}
+                  max={config.max}
                   step={config.step}
                   value={[numValue]}
-                  onValueChange={([val]) => updateNodeData(selectedNode.id, { 
-                    params: { ...params, [key]: val } 
+                  onValueChange={([val]) => updateNodeData(selectedNode.id, {
+                    params: { ...params, [key]: val }
                   })}
-                  className="[&_[role=slider]]:bg-primary [&_[role=slider]]:border-primary [&_[role=slider]]:shadow-[0_0_10px_rgba(0,229,255,0.5)]"
                 />
+                {desc?.typicalRange && (
+                  <p className="text-[10px] text-muted-foreground">Typical: {desc.typicalRange}</p>
+                )}
               </div>
             );
           })}

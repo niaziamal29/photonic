@@ -1,18 +1,19 @@
 import { useSimulatorStore } from '@/store/use-simulator-store';
 import { useRunSimulation, useUpdateBuild } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
-import { Play, Loader2, Target, Zap, Activity } from 'lucide-react';
+import { Play, Loader2, Target, Zap, Activity, Waves } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 export function SimulationPanel() {
-  const { 
-    activeBuildId, 
-    nodes, 
-    edges, 
-    isSimulating, 
-    setSimulating, 
+  const {
+    activeBuildId,
+    nodes,
+    edges,
+    isSimulating,
+    setSimulating,
     setSimulationResult,
     activeSimulationResult
   } = useSimulatorStore();
@@ -27,7 +28,6 @@ export function SimulationPanel() {
     setSimulating(true);
 
     try {
-      // 1. First save current layout to DB so sim runs on latest
       const layout = {
         components: nodes.map(n => ({
           id: n.id,
@@ -51,29 +51,28 @@ export function SimulationPanel() {
         data: { layout }
       });
 
-      // 2. Run simulation
       const result = await runSimulationMutation.mutateAsync({ buildId: activeBuildId });
-      
+
       setSimulationResult(result);
-      
+
       if (result.converged) {
         toast({
-          title: "Simulation Converged",
-          description: "Equilibrium achieved successfully.",
-          className: "border-success bg-success/10",
+          title: "Simulation converged",
+          description: "Your circuit has reached equilibrium.",
+          className: "border-green-500 bg-green-500/10",
         });
       } else if (result.issues.length > 0) {
         toast({
-          title: "Simulation Complete",
-          description: `Found ${result.issues.length} issues requiring attention.`,
+          title: "Simulation complete",
+          description: `Found ${result.issues.length} issue${result.issues.length > 1 ? 's' : ''} — check the Diagnostics tab for details.`,
           variant: "destructive"
         });
       }
 
     } catch (error: any) {
       toast({
-        title: "Simulation Failed",
-        description: error.message || "Engine encountered a critical fault.",
+        title: "Simulation failed",
+        description: error.message || "Something went wrong running the simulation.",
         variant: "destructive"
       });
     } finally {
@@ -83,97 +82,104 @@ export function SimulationPanel() {
 
   const res = activeSimulationResult;
   const score = res?.equilibriumScore || 0;
-  
-  // Score color logic
-  const scoreColor = score > 90 ? 'bg-success' : score > 50 ? 'bg-warning' : 'bg-destructive';
-  const scoreTextColor = score > 90 ? 'text-success' : score > 50 ? 'text-warning' : 'text-destructive';
+
+  const getScoreLabel = (s: number) => {
+    if (s >= 90) return { text: 'Excellent', color: 'text-green-400' };
+    if (s >= 70) return { text: 'Good', color: 'text-green-400' };
+    if (s >= 50) return { text: 'Fair', color: 'text-amber-400' };
+    if (s >= 25) return { text: 'Poor', color: 'text-orange-400' };
+    return { text: 'Critical', color: 'text-red-400' };
+  };
+
+  const scoreLabel = res ? getScoreLabel(score) : null;
+  const scoreColor = score > 90 ? 'bg-green-500' : score > 50 ? 'bg-amber-500' : 'bg-red-500';
 
   return (
-    <div className="h-48 border-t border-border bg-card/80 backdrop-blur-xl tech-border flex z-20">
-      
-      {/* Primary Action Zone */}
-      <div className="w-72 border-r border-border p-6 flex flex-col justify-center items-center gap-4 bg-background/50 relative overflow-hidden group">
-        <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-        
-        <Button 
-          size="lg" 
+    <div className="h-44 border-t border-border bg-card/80 backdrop-blur-xl flex z-20">
+      <div className="w-64 border-r border-border p-4 flex flex-col justify-center items-center gap-3 bg-background/50">
+        <Button
+          size="lg"
           onClick={handleSimulate}
           disabled={isSimulating || nodes.length === 0 || !activeBuildId}
           className={clsx(
-            "w-full h-16 text-lg font-bold font-mono tracking-widest relative overflow-hidden",
-            isSimulating ? "bg-muted text-muted-foreground border-transparent" : 
-            "bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_30px_rgba(0,229,255,0.3)] hover:shadow-[0_0_50px_rgba(0,229,255,0.5)] border border-primary/50"
+            "w-full h-14 text-base font-semibold relative overflow-hidden",
+            isSimulating ? "bg-muted text-muted-foreground" :
+            "bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-primary/30"
           )}
         >
           {isSimulating ? (
             <>
-              <Loader2 className="w-6 h-6 mr-3 animate-spin" />
-              COMPUTING...
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+              Running...
             </>
           ) : (
             <>
-              <Play className="w-6 h-6 mr-3 fill-current" />
-              ENGAGE
+              <Play className="w-5 h-5 mr-2 fill-current" />
+              Run Simulation
             </>
-          )}
-          
-          {/* Scanning line effect */}
-          {isSimulating && (
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/30 to-transparent h-full w-full animate-pulse-slow pointer-events-none" />
           )}
         </Button>
 
-        <div className="text-xs text-muted-foreground font-mono flex items-center justify-between w-full px-2">
-          <span>NODES: {nodes.length}</span>
-          <span>LINKS: {edges.length}</span>
+        <div className="text-xs text-muted-foreground flex items-center justify-between w-full px-1">
+          <span>{nodes.length} component{nodes.length !== 1 ? 's' : ''}</span>
+          <span>{edges.length} connection{edges.length !== 1 ? 's' : ''}</span>
         </div>
       </div>
 
-      {/* Main Stats Zone */}
-      <div className="flex-1 p-6 flex items-center gap-12">
-        {/* Equilibrium Score Gauge */}
-        <div className="flex flex-col items-center gap-3 min-w-[200px]">
-          <span className="text-xs font-bold text-muted-foreground font-mono tracking-widest">EQUILIBRIUM</span>
-          <div className="relative flex items-center justify-center w-full">
-            <span className={clsx("text-5xl font-bold font-mono drop-shadow-md", scoreTextColor)}>
-              {res ? score.toFixed(1) : '--'}
-            </span>
-            <span className="text-xl text-muted-foreground ml-1 mb-3">%</span>
-          </div>
-          <Progress 
-            value={score} 
-            className="w-full h-2 bg-background border border-white/10"
-            indicatorClassName={scoreColor} 
-          />
-        </div>
+      <div className="flex-1 p-5 flex items-center gap-8">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex flex-col items-center gap-2 min-w-[160px] cursor-help">
+              <span className="text-xs font-medium text-muted-foreground">Equilibrium Score</span>
+              <div className="flex items-baseline gap-1">
+                <span className={clsx("text-4xl font-bold tabular-nums", scoreLabel?.color || 'text-muted-foreground')}>
+                  {res ? score.toFixed(0) : '--'}
+                </span>
+                <span className="text-lg text-muted-foreground">/100</span>
+              </div>
+              {scoreLabel && <span className={clsx("text-xs font-medium", scoreLabel.color)}>{scoreLabel.text}</span>}
+              <Progress
+                value={score}
+                className="w-full h-1.5 bg-background border border-border"
+                indicatorClassName={scoreColor}
+              />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs">
+            <p className="text-xs">Measures how close your circuit is to optimal performance. 100 = perfect equilibrium with no issues. Score drops for high loss, noise, unconnected components, and other problems.</p>
+          </TooltipContent>
+        </Tooltip>
 
-        {/* Detailed Metrics Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 flex-1">
-          <MetricBox 
-            label="SYSTEM LOSS" 
-            value={res ? res.systemLoss.toFixed(2) : '--'} 
-            unit="dB" 
-            icon={Activity} 
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 flex-1">
+          <MetricBox
+            label="System Loss"
+            value={res ? res.systemLoss.toFixed(1) : '--'}
+            unit="dB"
+            icon={Activity}
             isWarning={res && res.systemLoss > 10}
+            tooltip="Total optical power lost across all components. Lower is better. Above 10 dB may cause signal issues."
           />
-          <MetricBox 
-            label="OUTPUT PWR" 
-            value={res ? res.totalOutputPower.toFixed(2) : '--'} 
-            unit="dBm" 
-            icon={Zap} 
+          <MetricBox
+            label="Output Power"
+            value={res ? res.totalOutputPower.toFixed(1) : '--'}
+            unit="dBm"
+            icon={Zap}
+            tooltip="Optical power arriving at the detector(s). 0 dBm = 1 mW. Negative values mean less than 1 mW."
           />
-          <MetricBox 
-            label="COHERENCE" 
-            value={res ? res.coherenceLength.toFixed(1) : '--'} 
-            unit="mm" 
-            icon={Target} 
+          <MetricBox
+            label="Coherence"
+            value={res ? res.coherenceLength.toFixed(1) : '--'}
+            unit="mm"
+            icon={Waves}
+            tooltip="The distance over which the light maintains phase coherence. Longer coherence enables interference-based devices like MZIs and ring resonators."
           />
-          <MetricBox 
-            label="SIGNAL/NOISE" 
-            value={res ? res.snr.toFixed(1) : '--'} 
-            unit="dB" 
-            icon={Activity} 
+          <MetricBox
+            label="Signal/Noise"
+            value={res ? res.snr.toFixed(1) : '--'}
+            unit="dB"
+            icon={Target}
             isWarning={res && res.snr < 20}
+            tooltip="Signal-to-noise ratio. Higher is better. Below 20 dB, signal quality may be too poor for reliable detection."
           />
         </div>
       </div>
@@ -181,22 +187,29 @@ export function SimulationPanel() {
   );
 }
 
-function MetricBox({ label, value, unit, icon: Icon, isWarning = false }: any) {
+function MetricBox({ label, value, unit, icon: Icon, isWarning = false, tooltip }: any) {
   return (
-    <div className={clsx(
-      "flex flex-col gap-1 p-3 rounded-lg border bg-background/40",
-      isWarning ? "border-warning/50 shadow-[0_0_15px_rgba(245,158,11,0.15)]" : "border-white/5"
-    )}>
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Icon className="w-4 h-4" />
-        <span className="text-[10px] font-bold uppercase tracking-wider font-mono">{label}</span>
-      </div>
-      <div className="flex items-baseline gap-1">
-        <span className={clsx("text-2xl font-semibold font-mono", isWarning ? "text-warning" : "text-foreground")}>
-          {value}
-        </span>
-        <span className="text-xs text-muted-foreground font-mono">{unit}</span>
-      </div>
-    </div>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className={clsx(
+          "flex flex-col gap-1 p-3 rounded-lg border cursor-help transition-colors",
+          isWarning ? "border-amber-500/30 bg-amber-500/5" : "border-border bg-background/30 hover:bg-background/50"
+        )}>
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Icon className="w-3.5 h-3.5" />
+            <span className="text-[11px] font-medium">{label}</span>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <span className={clsx("text-xl font-semibold tabular-nums", isWarning ? "text-amber-400" : "text-foreground")}>
+              {value}
+            </span>
+            <span className="text-[10px] text-muted-foreground">{unit}</span>
+          </div>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        <p className="text-xs">{tooltip}</p>
+      </TooltipContent>
+    </Tooltip>
   );
 }

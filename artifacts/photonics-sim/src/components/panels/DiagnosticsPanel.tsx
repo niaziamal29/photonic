@@ -1,6 +1,6 @@
 import { useSimulatorStore } from '@/store/use-simulator-store';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { AlertTriangle, Info, XCircle, ChevronRight } from 'lucide-react';
+import { AlertTriangle, Info, XCircle, CheckCircle, ChevronRight } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Badge } from '@/components/ui/badge';
 
@@ -10,9 +10,9 @@ export function DiagnosticsPanel() {
   if (!activeSimulationResult) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-muted-foreground">
-        <Info className="w-12 h-12 mb-4 opacity-20" />
-        <p className="font-mono text-sm">No simulation data.</p>
-        <p className="text-xs mt-2 opacity-60">Run a simulation to view diagnostics.</p>
+        <Info className="w-10 h-10 mb-3 opacity-20" />
+        <p className="text-sm font-medium">No results yet</p>
+        <p className="text-xs mt-1 opacity-60">Run a simulation to see diagnostics and suggestions.</p>
       </div>
     );
   }
@@ -21,69 +21,75 @@ export function DiagnosticsPanel() {
 
   if (issues.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-success">
-        <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mb-4">
-          <div className="w-12 h-12 rounded-full bg-success/40 flex items-center justify-center shadow-[0_0_30px_rgba(0,255,0,0.4)]">
-            <span className="text-2xl font-bold font-mono">OK</span>
-          </div>
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-14 h-14 rounded-full bg-green-500/20 flex items-center justify-center mb-3">
+          <CheckCircle className="w-8 h-8 text-green-500" />
         </div>
-        <p className="font-mono text-sm text-foreground">System is harmonized.</p>
-        <p className="text-xs mt-2 text-success/80">0 issues detected across all components.</p>
+        <p className="text-sm font-medium">All checks passed</p>
+        <p className="text-xs mt-1 text-muted-foreground">No issues detected. Your circuit is in good shape.</p>
       </div>
     );
   }
 
+  const errors = issues.filter((i: any) => i.severity === 'error');
+  const warnings = issues.filter((i: any) => i.severity === 'warning');
+  const infos = issues.filter((i: any) => i.severity === 'info');
+
   return (
-    <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-300">
-      <div className="p-4 border-b border-white/5 bg-background/50 flex justify-between items-center">
-        <h3 className="font-bold text-sm tracking-widest font-mono flex items-center gap-2">
-          SYSTEM ALERTS
-        </h3>
-        <Badge variant="outline" className="bg-background font-mono border-muted-foreground text-xs">
-          {issues.length} FOUND
-        </Badge>
+    <div className="flex flex-col h-full">
+      <div className="p-4 border-b border-border bg-background/50">
+        <div className="flex justify-between items-center">
+          <h3 className="font-semibold text-sm">Issues Found</h3>
+          <div className="flex gap-1.5">
+            {errors.length > 0 && (
+              <Badge variant="destructive" className="text-[10px] px-1.5">{errors.length} error{errors.length > 1 ? 's' : ''}</Badge>
+            )}
+            {warnings.length > 0 && (
+              <Badge className="text-[10px] px-1.5 bg-amber-500/20 text-amber-500 border-amber-500/30">{warnings.length} warning{warnings.length > 1 ? 's' : ''}</Badge>
+            )}
+            {infos.length > 0 && (
+              <Badge variant="secondary" className="text-[10px] px-1.5">{infos.length} info</Badge>
+            )}
+          </div>
+        </div>
       </div>
 
-      <ScrollArea className="flex-1 p-4">
-        <div className="space-y-3">
-          {issues.map((issue, idx) => {
+      <ScrollArea className="flex-1 p-3">
+        <div className="space-y-2">
+          {issues.map((issue: any, idx: number) => {
             const isError = issue.severity === 'error';
             const isWarning = issue.severity === 'warning';
-            
+
             const Icon = isError ? XCircle : isWarning ? AlertTriangle : Info;
-            const colorClass = isError ? 'text-destructive' : isWarning ? 'text-warning' : 'text-primary';
-            const bgClass = isError ? 'bg-destructive/10 border-destructive/30' : 
-                            isWarning ? 'bg-warning/10 border-warning/30' : 
-                            'bg-primary/10 border-primary/30';
+            const colorClass = isError ? 'text-red-400' : isWarning ? 'text-amber-400' : 'text-blue-400';
+            const bgClass = isError ? 'border-red-500/20 hover:bg-red-500/5' :
+                            isWarning ? 'border-amber-500/20 hover:bg-amber-500/5' :
+                            'border-blue-500/20 hover:bg-blue-500/5';
 
             return (
-              <div 
-                key={idx} 
+              <div
+                key={idx}
                 className={clsx(
-                  "p-3 rounded-lg border transition-all cursor-pointer hover:bg-white/5",
+                  "p-3 rounded-lg border transition-all cursor-pointer",
                   bgClass
                 )}
                 onClick={() => issue.componentId && setSelectedNode(issue.componentId)}
               >
-                <div className="flex gap-3">
-                  <Icon className={clsx("w-5 h-5 shrink-0 mt-0.5", colorClass)} />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className={clsx("text-xs font-bold uppercase tracking-wider font-mono", colorClass)}>
-                        {issue.code}
-                      </span>
-                      {issue.componentId && (
-                        <div className="flex items-center text-[10px] text-muted-foreground hover:text-foreground transition-colors font-mono">
-                          ID: {issue.componentId.split('-')[1] || issue.componentId}
-                          <ChevronRight className="w-3 h-3 ml-0.5" />
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-sm font-medium mb-1.5">{issue.message}</p>
-                    <div className="bg-background/50 rounded p-2 border border-white/5">
-                      <span className="text-[10px] text-muted-foreground uppercase font-bold mr-2">Suggestion</span>
-                      <span className="text-xs font-mono">{issue.suggestion}</span>
-                    </div>
+                <div className="flex gap-2.5">
+                  <Icon className={clsx("w-4 h-4 shrink-0 mt-0.5", colorClass)} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm mb-1">{issue.message}</p>
+                    {issue.suggestion && (
+                      <div className="text-xs text-muted-foreground bg-background/50 rounded p-2 border border-border/50">
+                        <span className="font-medium text-foreground/70">Fix: </span>
+                        {issue.suggestion}
+                      </div>
+                    )}
+                    {issue.componentId && (
+                      <div className="flex items-center text-[10px] text-muted-foreground mt-1.5 hover:text-foreground transition-colors">
+                        Click to select component <ChevronRight className="w-3 h-3 ml-0.5" />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

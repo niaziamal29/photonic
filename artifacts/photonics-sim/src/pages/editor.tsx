@@ -97,8 +97,8 @@ export default function Editor() {
         data: { layout }
       });
       toast({
-        title: "Build Saved",
-        description: "Configuration synchronized with local databank.",
+        title: "Saved",
+        description: "Your circuit has been saved.",
         className: "bg-background border-primary",
       });
     } catch (e) {
@@ -114,7 +114,7 @@ export default function Editor() {
       <div className="h-screen w-full flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4 text-primary">
           <Loader2 className="w-12 h-12 animate-spin" />
-          <p className="font-mono tracking-widest animate-pulse">LOADING CONFIGURATION...</p>
+          <p className="text-sm text-muted-foreground">Loading circuit...</p>
         </div>
       </div>
     );
@@ -150,7 +150,7 @@ export default function Editor() {
             className="font-mono text-xs border-white/10 hover:bg-white/5 hover:border-white/20 transition-all"
           >
             {updateBuildMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-            SAVE CONFIG
+            Save
           </Button>
         </div>
       </header>
@@ -177,11 +177,11 @@ export default function Editor() {
           <Tabs value={activePanelTab} onValueChange={(v: any) => setActivePanelTab(v)} className="flex-1 flex flex-col h-full">
             <div className="p-2 border-b border-border bg-background/50">
               <TabsList className="w-full grid grid-cols-2 bg-black/40 p-1 border border-white/5">
-                <TabsTrigger value="properties" className="font-mono text-xs tracking-wider data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
-                  PROPERTIES
+                <TabsTrigger value="properties" className="text-xs data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+                  Properties
                 </TabsTrigger>
-                <TabsTrigger value="diagnostics" className="font-mono text-xs tracking-wider data-[state=active]:bg-primary/20 data-[state=active]:text-primary relative">
-                  DIAGNOSTICS
+                <TabsTrigger value="diagnostics" className="text-xs data-[state=active]:bg-primary/20 data-[state=active]:text-primary relative">
+                  Diagnostics
                   {issueCount > 0 && (
                     <span className="absolute -top-1 -right-1 w-3 h-3 bg-destructive rounded-full border-2 border-background animate-pulse" />
                   )}

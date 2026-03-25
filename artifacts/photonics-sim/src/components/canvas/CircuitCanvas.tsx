@@ -66,7 +66,7 @@ function FlowCanvas() {
       });
 
       const newNode: PhotonNode = {
-        id: `node-${Date.now()}`,
+        id: crypto.randomUUID(),
         type: 'photonNode',
         position,
         data: { 

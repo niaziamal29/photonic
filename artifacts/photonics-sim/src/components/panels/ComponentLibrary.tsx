@@ -1,29 +1,12 @@
 import { useListComponentTemplates } from '@workspace/api-client-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, Sun, Spline, ArrowRightLeft, Activity, Radio, Eye, Zap, FastForward, Filter, Shield, RotateCw, Type, Circle, Maximize, ChevronDown, GripVertical, BookOpen } from 'lucide-react';
+import { Search, Activity, ChevronDown, GripVertical, BookOpen } from 'lucide-react';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-
-const ICON_MAP: Record<string, React.ElementType> = {
-  laser_source: Sun,
-  waveguide: Spline,
-  beam_splitter: ArrowRightLeft,
-  coupler: Activity,
-  modulator: Radio,
-  photodetector: Eye,
-  optical_amplifier: Zap,
-  phase_shifter: FastForward,
-  filter: Filter,
-  isolator: Shield,
-  circulator: RotateCw,
-  mzi: Type,
-  ring_resonator: Circle,
-  grating_coupler: Maximize,
-  mirror: Activity,
-};
+import { ICON_MAP } from '@/constants/icons';
 
 const CATEGORY_ORDER = ['Sources', 'Passive', 'Active', 'Structures', 'Detectors'];
 

@@ -90,11 +90,11 @@ export interface SimulationOutput {
   suggestions: string[];
 }
 
-function dBmToWatts(dBm: number): number {
+export function dBmToWatts(dBm: number): number {
   return Math.pow(10, (dBm - 30) / 10);
 }
 
-function wattsToDBm(W: number): number {
+export function wattsToDBm(W: number): number {
   if (W <= 0) return -100;
   return 10 * Math.log10(W) + 30;
 }

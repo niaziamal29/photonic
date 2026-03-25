@@ -1,0 +1,35 @@
+import {
+  Activity,
+  Sun,
+  Spline,
+  ArrowRightLeft,
+  Radio,
+  Eye,
+  Zap,
+  FastForward,
+  Filter,
+  Shield,
+  RotateCw,
+  Circle,
+  Maximize,
+  Type,
+} from 'lucide-react';
+import { ComponentType } from '@workspace/api-client-react';
+
+export const ICON_MAP: Record<ComponentType, React.ElementType> = {
+  laser_source: Sun,
+  waveguide: Spline,
+  beam_splitter: ArrowRightLeft,
+  coupler: Activity,
+  modulator: Radio,
+  photodetector: Eye,
+  optical_amplifier: Zap,
+  phase_shifter: FastForward,
+  filter: Filter,
+  isolator: Shield,
+  circulator: RotateCw,
+  mzi: Type,
+  ring_resonator: Circle,
+  grating_coupler: Maximize,
+  mirror: Activity,
+};

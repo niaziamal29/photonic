@@ -27,8 +27,6 @@ interface SimulatorState {
   // Actions
   setNodes: (nodes: PhotonNode[] | ((nodes: PhotonNode[]) => PhotonNode[])) => void;
   setEdges: (edges: Edge[] | ((edges: Edge[]) => Edge[])) => void;
-  onNodesChange: (changes: any) => void;
-  onEdgesChange: (changes: any) => void;
   addNode: (node: PhotonNode) => void;
   updateNodeData: (id: string, data: Partial<PhotonNodeData>) => void;
   onConnect: (connection: FlowConnection) => void;
@@ -56,15 +54,6 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
     edges: typeof edges === 'function' ? edges(state.edges) : edges 
   })),
   
-  onNodesChange: (changes) => set((state) => {
-    // Basic stub for react-flow applyNodeChanges
-    // In a real app we'd import applyNodeChanges, but we can manage updates manually or via wrapper
-    return { nodes: state.nodes }; // We will rely on ReactFlow's controlled state via wrapper
-  }),
-  onEdgesChange: (changes) => set((state) => {
-    return { edges: state.edges }; 
-  }),
-
   addNode: (node) => set((state) => ({ nodes: [...state.nodes, node] })),
   
   updateNodeData: (id, data) => set((state) => ({

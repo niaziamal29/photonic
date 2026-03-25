@@ -100,10 +100,10 @@ function wattsToDBm(W: number): number {
 }
 
 function computeCoherenceLength(wavelength_nm: number, bandwidth_GHz: number): number {
-  const c = 3e8;
-  const lambda = wavelength_nm * 1e-9;
-  const delta_nu = bandwidth_GHz * 1e9;
-  return (lambda * lambda * c) / (delta_nu * lambda * lambda) / delta_nu / 1e-6 * c;
+  if (bandwidth_GHz <= 0) return 1e6; // effectively infinite
+  const c = 3e8; // m/s
+  const delta_nu = bandwidth_GHz * 1e9; // Hz
+  return (c / delta_nu) * 1e3; // meters → millimeters
 }
 
 export function runPhotonicsSimulation(layout: CircuitLayout, targetWavelength: number, previousScore?: number): SimulationOutput {
@@ -364,7 +364,7 @@ export function runPhotonicsSimulation(layout: CircuitLayout, targetWavelength: 
   const snr = totalOutputPower > noiseFloor ? totalOutputPower - noiseFloor + (hasAmplifiers ? -3 : 0) : 0;
 
   const laserBandwidth = lasers[0]?.params?.bandwidth ?? 0.1;
-  const coherenceLength = laserBandwidth > 0 ? (dominantWavelength * 1e-9 * dominantWavelength * 1e-9 * 3e8) / (laserBandwidth * 1e9 * (dominantWavelength * 1e-9) * (dominantWavelength * 1e-9)) / 1e-3 : 1e6;
+  const coherenceLength = computeCoherenceLength(dominantWavelength, laserBandwidth);
 
   const errorCount = allIssues.filter(i => i.severity === "error").length;
   const warningCount = allIssues.filter(i => i.severity === "warning").length;

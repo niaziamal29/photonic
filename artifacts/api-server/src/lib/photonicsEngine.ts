@@ -106,6 +106,52 @@ function computeCoherenceLength(wavelength_nm: number, bandwidth_GHz: number): n
   return (c / delta_nu) * 1e3; // meters → millimeters
 }
 
+function topologicalSort(
+  components: CircuitComponent[],
+  connections: Connection[],
+): { sorted: CircuitComponent[]; cycleNodeIds: Set<string> } {
+  const inDegree = new Map<string, number>();
+  const adjacency = new Map<string, string[]>();
+
+  for (const c of components) {
+    inDegree.set(c.id, 0);
+    adjacency.set(c.id, []);
+  }
+  for (const conn of connections) {
+    adjacency.get(conn.fromComponentId)?.push(conn.toComponentId);
+    inDegree.set(conn.toComponentId, (inDegree.get(conn.toComponentId) ?? 0) + 1);
+  }
+
+  const queue: string[] = [];
+  for (const [id, deg] of inDegree) {
+    if (deg === 0) queue.push(id);
+  }
+
+  const sortedIds: string[] = [];
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    sortedIds.push(id);
+    for (const next of adjacency.get(id) ?? []) {
+      const newDeg = (inDegree.get(next) ?? 1) - 1;
+      inDegree.set(next, newDeg);
+      if (newDeg === 0) queue.push(next);
+    }
+  }
+
+  const sortedSet = new Set(sortedIds);
+  const cycleNodeIds = new Set<string>();
+  for (const c of components) {
+    if (!sortedSet.has(c.id)) cycleNodeIds.add(c.id);
+  }
+
+  const allIds = [...sortedIds, ...cycleNodeIds];
+  const idToComp = new Map(components.map(c => [c.id, c]));
+  return {
+    sorted: allIds.map(id => idToComp.get(id)!).filter(Boolean),
+    cycleNodeIds,
+  };
+}
+
 export function runPhotonicsSimulation(layout: CircuitLayout, targetWavelength: number, previousScore?: number): SimulationOutput {
   const { components, connections } = layout;
 
@@ -169,7 +215,33 @@ export function runPhotonicsSimulation(layout: CircuitLayout, targetWavelength: 
   let systemLoss = 0;
   let dominantWavelength = targetWavelength;
 
-  for (const comp of components) {
+  // Build incoming connections lookup: componentId → list of upstream component IDs
+  const incomingConnections = new Map<string, string[]>();
+  for (const conn of connections) {
+    if (!incomingConnections.has(conn.toComponentId)) {
+      incomingConnections.set(conn.toComponentId, []);
+    }
+    incomingConnections.get(conn.toComponentId)!.push(conn.fromComponentId);
+  }
+
+  // Topological sort for correct evaluation order
+  const { sorted: sortedComponents, cycleNodeIds } = topologicalSort(components, connections);
+
+  // Track output power per component for propagation
+  const outputPowerMap = new Map<string, number>();
+
+  // Emit warnings for cycle nodes
+  if (cycleNodeIds.size > 0) {
+    allIssues.push({
+      code: 'FEEDBACK_LOOP',
+      severity: 'warning',
+      message: `Feedback loop detected involving ${cycleNodeIds.size} component(s): ${[...cycleNodeIds].join(', ')}. Iterative convergence not yet implemented.`,
+      suggestion: 'Ring resonator feedback loops will be evaluated without loop gain in this version.',
+      componentId: undefined,
+    });
+  }
+
+  for (const comp of sortedComponents) {
     const params = comp.params;
     const issues: Issue[] = [];
     let inputPower = 0;
@@ -178,6 +250,27 @@ export function runPhotonicsSimulation(layout: CircuitLayout, targetWavelength: 
     let loss = 0;
     let gain = 0;
     const compWavelength = params.wavelength ?? targetWavelength;
+
+    // Compute input power from upstream connections
+    if (comp.type === 'laser_source') {
+      inputPower = params.power ?? 0;
+    } else if (cycleNodeIds.has(comp.id)) {
+      inputPower = -100; // no signal for unresolved cycle nodes
+    } else {
+      const upstreamIds = incomingConnections.get(comp.id) ?? [];
+      if (upstreamIds.length === 0) {
+        inputPower = -100; // disconnected
+      } else if (upstreamIds.length === 1) {
+        inputPower = outputPowerMap.get(upstreamIds[0]) ?? -100;
+      } else {
+        // Multiple inputs: sum in linear domain (watts)
+        let totalWatts = 0;
+        for (const uid of upstreamIds) {
+          totalWatts += dBmToWatts(outputPowerMap.get(uid) ?? -100);
+        }
+        inputPower = totalWatts > 0 ? wattsToDBm(totalWatts) : -100;
+      }
+    }
 
     const wavelengthMismatch = Math.abs(compWavelength - targetWavelength);
     if (wavelengthMismatch > 10 && comp.type !== "filter") {
@@ -192,8 +285,7 @@ export function runPhotonicsSimulation(layout: CircuitLayout, targetWavelength: 
 
     switch (comp.type) {
       case "laser_source": {
-        inputPower = params.power ?? 0;
-        outputPower = params.power ?? 0;
+        outputPower = inputPower;
         totalInputPower += dBmToWatts(outputPower);
         gain = 0;
         loss = 0;
@@ -210,7 +302,6 @@ export function runPhotonicsSimulation(layout: CircuitLayout, targetWavelength: 
         const alpha = params.alpha ?? 2.0;
         const length = params.length ?? 1000;
         const propagationLoss = alpha * (length / 10000);
-        inputPower = 0;
         loss = propagationLoss;
         outputPower = inputPower - propagationLoss;
         systemLoss += propagationLoss;
@@ -262,10 +353,9 @@ export function runPhotonicsSimulation(layout: CircuitLayout, targetWavelength: 
         break;
       }
       case "photodetector": {
-        inputPower = 0;
         const responsivity = params.responsivity ?? 0.8;
         loss = 0;
-        outputPower = 0;
+        outputPower = inputPower;
         if (responsivity < 0.5) {
           issues.push({ code: "LOW_RESPONSIVITY", severity: "warning", message: `Detector responsivity ${responsivity}A/W is low`, suggestion: "Use high-responsivity InGaAs detector (>0.8 A/W)", componentId: comp.id });
         }
@@ -337,6 +427,8 @@ export function runPhotonicsSimulation(layout: CircuitLayout, targetWavelength: 
       }
     }
 
+    outputPowerMap.set(comp.id, outputPower);
+
     const componentStatus: "ok" | "warning" | "error" = issues.some(i => i.severity === "error") ? "error" : issues.some(i => i.severity === "warning") ? "warning" : "ok";
     allIssues.push(...issues);
 
@@ -356,8 +448,19 @@ export function runPhotonicsSimulation(layout: CircuitLayout, targetWavelength: 
   }
 
   const totalInputWatts = totalInputPower;
-  const totalOutputPower = totalInputWatts > 0 ? wattsToDBm(totalInputWatts * Math.pow(10, -systemLoss / 10)) : -100;
   const totalInputdBm = totalInputWatts > 0 ? wattsToDBm(totalInputWatts) : -100;
+
+  // Compute total output power from detector outputs (or last components if no detectors)
+  let totalOutputPower: number;
+  if (detectors.length > 0) {
+    let detectorWatts = 0;
+    for (const det of detectors) {
+      detectorWatts += dBmToWatts(outputPowerMap.get(det.id) ?? -100);
+    }
+    totalOutputPower = detectorWatts > 0 ? wattsToDBm(detectorWatts) : -100;
+  } else {
+    totalOutputPower = totalInputWatts > 0 ? wattsToDBm(totalInputWatts * Math.pow(10, -systemLoss / 10)) : -100;
+  }
 
   const hasAmplifiers = components.some(c => c.type === "optical_amplifier");
   const noiseFloor = -80;
@@ -382,7 +485,7 @@ export function runPhotonicsSimulation(layout: CircuitLayout, targetWavelength: 
   if (systemLoss > 15) equilibriumScore -= 5;
   equilibriumScore = Math.max(0, Math.min(100, equilibriumScore));
 
-  const converged = equilibriumScore >= 85 && errorCount === 0 && warningCount <= 1;
+  const converged = equilibriumScore >= 85 && errorCount === 0 && warningCount <= 1 && cycleNodeIds.size === 0;
 
   const suggestions: string[] = [];
   if (!hasSource) suggestions.push("Add a laser source to begin building the optical circuit");

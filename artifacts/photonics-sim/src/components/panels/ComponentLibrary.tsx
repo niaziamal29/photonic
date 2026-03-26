@@ -1,4 +1,7 @@
-import { useListComponentTemplates } from '@workspace/api-client-react';
+import {
+  type ComponentTemplate as ApiComponentTemplate,
+  useListComponentTemplates,
+} from '@workspace/api-client-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Search, Activity, ChevronDown, GripVertical, BookOpen } from 'lucide-react';
@@ -10,6 +13,27 @@ import { ICON_MAP } from '@/constants/icons';
 
 const CATEGORY_ORDER = ['Sources', 'Passive', 'Active', 'Structures', 'Detectors'];
 
+type TemplateKnowledge = {
+  overview?: string;
+  keyPrinciples?: string[];
+  typicalApplications?: string[];
+  commonIssues?: string[];
+  tips?: string;
+};
+
+type ParameterDescription = {
+  label: string;
+  unit?: string;
+  description: string;
+  typicalRange?: string;
+};
+
+type ComponentTemplate = ApiComponentTemplate & {
+  category?: string;
+  knowledge?: TemplateKnowledge;
+  parameterDescriptions?: Record<string, ParameterDescription>;
+};
+
 export function ComponentLibrary() {
   const { data: templates, isLoading } = useListComponentTemplates();
   const [search, setSearch] = useState('');
@@ -20,7 +44,7 @@ export function ComponentLibrary() {
     event.dataTransfer.effectAllowed = 'move';
   };
 
-  const filteredTemplates = templates?.filter((t: any) =>
+  const filteredTemplates = templates?.filter((t: ComponentTemplate) =>
     t.label.toLowerCase().includes(search.toLowerCase()) ||
     t.type.toLowerCase().includes(search.toLowerCase()) ||
     (t.category || '').toLowerCase().includes(search.toLowerCase())
@@ -28,7 +52,7 @@ export function ComponentLibrary() {
 
   const grouped = CATEGORY_ORDER.map(cat => ({
     category: cat,
-    items: (filteredTemplates || []).filter((t: any) => t.category === cat),
+    items: (filteredTemplates || []).filter((t: ComponentTemplate) => t.category === cat),
   })).filter(g => g.items.length > 0);
 
   const ungrouped = (filteredTemplates || []).filter((t: any) => !CATEGORY_ORDER.includes(t.category));
@@ -73,7 +97,7 @@ export function ComponentLibrary() {
 
                 {expandedCategory !== category && (
                   <div className="space-y-1">
-                    {items.map((template: any) => {
+                    {items.map((template: ComponentTemplate) => {
                       const Icon = ICON_MAP[template.type] || Activity;
                       return (
                         <ComponentItem
@@ -89,7 +113,7 @@ export function ComponentLibrary() {
 
                 {expandedCategory === category && (
                   <div className="space-y-1">
-                    {items.map((template: any) => {
+                    {items.map((template: ComponentTemplate) => {
                       const Icon = ICON_MAP[template.type] || Activity;
                       return (
                         <ComponentItem
@@ -117,7 +141,12 @@ export function ComponentLibrary() {
   );
 }
 
-function ComponentItem({ template, Icon, onDragStart }: { template: any; Icon: React.ElementType; onDragStart: (e: React.DragEvent, type: string, label: string) => void }) {
+function ComponentItem({ template, Icon, onDragStart }: { template: ComponentTemplate; Icon: React.ElementType; onDragStart: (e: React.DragEvent, type: string, label: string) => void }) {
+  const knowledge = template.knowledge;
+  const keyPrinciples = knowledge?.keyPrinciples ?? [];
+  const typicalApplications = knowledge?.typicalApplications ?? [];
+  const commonIssues = knowledge?.commonIssues ?? [];
+
   return (
     <div className="flex items-center gap-1">
       <div
@@ -163,18 +192,18 @@ function ComponentItem({ template, Icon, onDragStart }: { template: any; Icon: R
           <div className="space-y-5 mt-2">
             <p className="text-sm text-foreground leading-relaxed">{template.description}</p>
 
-            {template.knowledge && (
+            {knowledge && (
               <>
                 <div>
                   <h4 className="text-sm font-semibold mb-2">How It Works</h4>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{template.knowledge.overview}</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{knowledge.overview}</p>
                 </div>
 
-                {template.knowledge.keyPrinciples?.length > 0 && (
+                {keyPrinciples.length > 0 && (
                   <div>
                     <h4 className="text-sm font-semibold mb-2">Key Principles</h4>
                     <ul className="space-y-1.5">
-                      {template.knowledge.keyPrinciples.map((p: string, i: number) => (
+                      {keyPrinciples.map((p: string, i: number) => (
                         <li key={i} className="text-sm text-muted-foreground flex gap-2">
                           <span className="text-primary mt-0.5 shrink-0">•</span>
                           <span>{p}</span>
@@ -184,11 +213,11 @@ function ComponentItem({ template, Icon, onDragStart }: { template: any; Icon: R
                   </div>
                 )}
 
-                {template.knowledge.typicalApplications?.length > 0 && (
+                {typicalApplications.length > 0 && (
                   <div>
                     <h4 className="text-sm font-semibold mb-2">Common Applications</h4>
                     <div className="flex flex-wrap gap-1.5">
-                      {template.knowledge.typicalApplications.map((app: string, i: number) => (
+                      {typicalApplications.map((app: string, i: number) => (
                         <Badge key={i} variant="secondary" className="text-xs font-normal">{app}</Badge>
                       ))}
                     </div>
@@ -197,11 +226,11 @@ function ComponentItem({ template, Icon, onDragStart }: { template: any; Icon: R
 
                 <Separator />
 
-                {template.knowledge.commonIssues?.length > 0 && (
+                {commonIssues.length > 0 && (
                   <div>
                     <h4 className="text-sm font-semibold mb-2 text-amber-500">Watch Out For</h4>
                     <ul className="space-y-1">
-                      {template.knowledge.commonIssues.map((issue: string, i: number) => (
+                      {commonIssues.map((issue: string, i: number) => (
                         <li key={i} className="text-sm text-muted-foreground flex gap-2">
                           <span className="text-amber-500 mt-0.5 shrink-0">!</span>
                           <span>{issue}</span>
@@ -211,10 +240,10 @@ function ComponentItem({ template, Icon, onDragStart }: { template: any; Icon: R
                   </div>
                 )}
 
-                {template.knowledge.tips && (
+                {knowledge.tips && (
                   <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
                     <h4 className="text-sm font-semibold mb-1 text-primary">Pro Tip</h4>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{template.knowledge.tips}</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{knowledge.tips}</p>
                   </div>
                 )}
               </>
@@ -224,7 +253,7 @@ function ComponentItem({ template, Icon, onDragStart }: { template: any; Icon: R
               <div>
                 <h4 className="text-sm font-semibold mb-3">Parameters</h4>
                 <div className="space-y-3">
-                  {Object.entries(template.parameterDescriptions).map(([key, desc]: [string, any]) => (
+                  {Object.entries(template.parameterDescriptions).map(([key, desc]) => (
                     <div key={key} className="bg-muted/20 rounded-lg p-3 border border-border/50">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-medium">{desc.label}</span>

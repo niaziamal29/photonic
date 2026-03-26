@@ -6,10 +6,12 @@ import {
   applyNodeChanges, 
   applyEdgeChanges,
   addEdge,
-  Connection,
   Edge,
-  NodeChange,
-  EdgeChange,
+  OnConnect,
+  OnEdgesChange,
+  OnNodesChange,
+  OnSelectionChangeFunc,
+  ReactFlowInstance,
   ReactFlowProvider,
   BackgroundVariant
 } from '@xyflow/react';
@@ -25,22 +27,23 @@ const nodeTypes = {
 
 function FlowCanvas() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
+  const [reactFlowInstance, setReactFlowInstance] =
+    useState<ReactFlowInstance<PhotonNode> | null>(null);
   
   const { nodes, edges, setNodes, setEdges, setSelectedNode } = useSimulatorStore();
 
-  const onNodesChange = useCallback(
-    (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds) as PhotonNode[]),
+  const onNodesChange: OnNodesChange<PhotonNode> = useCallback(
+    (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
     [setNodes]
   );
 
-  const onEdgesChange = useCallback(
-    (changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)),
+  const onEdgesChange: OnEdgesChange<Edge> = useCallback(
+    (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
     [setEdges]
   );
 
-  const onConnect = useCallback(
-    (params: Connection | Edge) => setEdges((eds) => addEdge({ ...params, animated: true, style: { strokeWidth: 2, stroke: 'hsl(var(--primary))' } }, eds)),
+  const onConnect: OnConnect = useCallback(
+    (params) => setEdges((eds) => addEdge(params, eds)),
     [setEdges]
   );
 
@@ -81,7 +84,7 @@ function FlowCanvas() {
     [reactFlowInstance, nodes.length, setNodes]
   );
 
-  const onSelectionChange = useCallback(({ nodes }: { nodes: PhotonNode[] }) => {
+  const onSelectionChange: OnSelectionChangeFunc<PhotonNode, Edge> = useCallback(({ nodes }) => {
     if (nodes.length === 1) {
       setSelectedNode(nodes[0].id);
     } else {
@@ -102,6 +105,10 @@ function FlowCanvas() {
         onDragOver={onDragOver}
         onSelectionChange={onSelectionChange}
         nodeTypes={nodeTypes}
+        defaultEdgeOptions={{
+          animated: true,
+          style: { strokeWidth: 2, stroke: 'hsl(var(--primary))' },
+        }}
         fitView
         className="touch-none"
       >

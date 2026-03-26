@@ -111,7 +111,7 @@ export async function predict(
     ];
 
     return {
-      nodeOutputs: encoded.nodeIds.map((id, i) => ({
+      nodeOutputs: encoded.nodeIds.map((id: string, i: number) => ({
         componentId: id,
         outputPower: nodeData[i * 6],
         loss: nodeData[i * 6 + 1],

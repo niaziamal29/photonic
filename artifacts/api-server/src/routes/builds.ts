@@ -5,6 +5,7 @@ import { db, buildsTable, simulationsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { runPhotonicsSimulation } from "../lib/photonicsEngine.js";
 import { validateBody } from "../middleware/validate.js";
+import { parseBuildIdParam } from "./buildId.js";
 
 const router: IRouter = Router();
 
@@ -87,8 +88,8 @@ router.post("/", validateBody(createBuildSchema), async (req, res) => {
 
 router.get("/:buildId", async (req, res) => {
   try {
-    const buildId = parseInt(req.params.buildId);
-    if (isNaN(buildId)) {
+    const buildId = parseBuildIdParam(req.params.buildId);
+    if (buildId === null) {
       res.status(400).json({ error: "INVALID_ID", message: "Build ID must be a number" });
       return;
     }
@@ -106,8 +107,8 @@ router.get("/:buildId", async (req, res) => {
 
 router.put("/:buildId", validateBody(createBuildSchema.partial()), async (req, res) => {
   try {
-    const buildId = parseInt(req.params.buildId);
-    if (isNaN(buildId)) {
+    const buildId = parseBuildIdParam(req.params.buildId);
+    if (buildId === null) {
       res.status(400).json({ error: "INVALID_ID", message: "Build ID must be a number" });
       return;
     }
@@ -134,8 +135,8 @@ router.put("/:buildId", validateBody(createBuildSchema.partial()), async (req, r
 
 router.delete("/:buildId", async (req, res) => {
   try {
-    const buildId = parseInt(req.params.buildId);
-    if (isNaN(buildId)) {
+    const buildId = parseBuildIdParam(req.params.buildId);
+    if (buildId === null) {
       res.status(400).json({ error: "INVALID_ID", message: "Build ID must be a number" });
       return;
     }
@@ -153,8 +154,8 @@ router.delete("/:buildId", async (req, res) => {
 
 router.post("/:buildId/simulate", simulationLimiter, async (req, res) => {
   try {
-    const buildId = parseInt(req.params.buildId);
-    if (isNaN(buildId)) {
+    const buildId = parseBuildIdParam(req.params.buildId);
+    if (buildId === null) {
       res.status(400).json({ error: "INVALID_ID", message: "Build ID must be a number" });
       return;
     }
@@ -208,8 +209,8 @@ router.post("/:buildId/simulate", simulationLimiter, async (req, res) => {
 
 router.get("/:buildId/simulations", async (req, res) => {
   try {
-    const buildId = parseInt(req.params.buildId);
-    if (isNaN(buildId)) {
+    const buildId = parseBuildIdParam(req.params.buildId);
+    if (buildId === null) {
       res.status(400).json({ error: "INVALID_ID", message: "Build ID must be a number" });
       return;
     }

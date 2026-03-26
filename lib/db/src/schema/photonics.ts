@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, doublePrecision, jsonb, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, doublePrecision, jsonb, timestamp, pgEnum, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -66,7 +66,7 @@ export const simulationsTable = pgTable("simulations", {
     suggestion: string;
     componentId?: string;
   }>>(),
-  converged: text("converged").notNull().default("false"),
+  converged: boolean("converged").notNull().default(false),
   suggestions: jsonb("suggestions").notNull().$type<string[]>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -78,3 +78,34 @@ export type Build = typeof buildsTable.$inferSelect;
 export type InsertBuild = z.infer<typeof insertBuildSchema>;
 export type Simulation = typeof simulationsTable.$inferSelect;
 export type InsertSimulation = z.infer<typeof insertSimulationSchema>;
+
+export const trainingExamplesTable = pgTable("training_examples", {
+  id: serial("id").primaryKey(),
+  graph: jsonb("graph").notNull(),
+  results: jsonb("results").notNull(),
+  topology: text("topology").notNull(),
+  componentCount: integer("component_count").notNull(),
+  source: text("source").notNull().default("synthetic"),
+  qualityScore: doublePrecision("quality_score"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const mlModelsTable = pgTable("ml_models", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  version: text("version").notNull(),
+  modelType: text("model_type").notNull(),
+  onnxPath: text("onnx_path"),
+  pythonModule: text("python_module"),
+  metrics: jsonb("metrics").notNull().$type<Record<string, number>>(),
+  active: boolean("active").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertTrainingExampleSchema = createInsertSchema(trainingExamplesTable).omit({ id: true, createdAt: true });
+export const insertMlModelSchema = createInsertSchema(mlModelsTable).omit({ id: true, createdAt: true });
+
+export type TrainingExample = typeof trainingExamplesTable.$inferSelect;
+export type InsertTrainingExample = z.infer<typeof insertTrainingExampleSchema>;
+export type MlModel = typeof mlModelsTable.$inferSelect;
+export type InsertMlModel = z.infer<typeof insertMlModelSchema>;

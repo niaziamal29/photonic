@@ -185,7 +185,7 @@ router.post("/:buildId/simulate", simulationLimiter, async (req, res) => {
       equilibriumScore: simOutput.equilibriumScore,
       componentResults: simOutput.componentResults,
       issues: simOutput.issues,
-      converged: simOutput.converged.toString(),
+      converged: simOutput.converged,
       suggestions: simOutput.suggestions,
     }).returning();
 
@@ -198,7 +198,7 @@ router.post("/:buildId/simulate", simulationLimiter, async (req, res) => {
 
     res.json({
       ...sim,
-      converged: sim.converged === "true",
+      converged: sim.converged,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to run simulation");
@@ -216,7 +216,7 @@ router.get("/:buildId/simulations", async (req, res) => {
     const sims = await db.select().from(simulationsTable)
       .where(eq(simulationsTable.buildId, buildId))
       .orderBy(simulationsTable.iterationNumber);
-    res.json(sims.map(s => ({ ...s, converged: s.converged === "true" })));
+    res.json(sims);
   } catch (err) {
     req.log.error({ err }, "Failed to list simulations");
     res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to list simulations" });

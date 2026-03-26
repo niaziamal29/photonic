@@ -7,7 +7,8 @@
       "runtimeArgs": ["--filter", "api-server", "dev"],
       "port": 3000,
       "env": {
-        "PORT": "3000"
+        "PORT": "3000",
+        "DATABASE_URL": "postgresql://localhost:5432/photonics_dev"
       }
     },
     {

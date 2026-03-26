@@ -12,6 +12,11 @@ from .train_surrogate import (
     load_dataset,
     train,
 )
+from .train_generative import (
+    load_cvae_dataset,
+    train_cvae,
+    validate_generation,
+)
 
 __all__ = [
     "COMPONENT_TYPES",
@@ -24,4 +29,7 @@ __all__ = [
     "example_to_pyg",
     "load_dataset",
     "train",
+    "load_cvae_dataset",
+    "train_cvae",
+    "validate_generation",
 ]

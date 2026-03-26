@@ -55,7 +55,9 @@ export function ComponentLibrary() {
     items: (filteredTemplates || []).filter((t: ComponentTemplate) => t.category === cat),
   })).filter(g => g.items.length > 0);
 
-  const ungrouped = (filteredTemplates || []).filter((t: any) => !CATEGORY_ORDER.includes(t.category));
+  const ungrouped = (filteredTemplates || []).filter(
+    (t: ComponentTemplate) => !CATEGORY_ORDER.includes(t.category ?? ''),
+  );
   if (ungrouped.length > 0) {
     grouped.push({ category: 'Other', items: ungrouped });
   }

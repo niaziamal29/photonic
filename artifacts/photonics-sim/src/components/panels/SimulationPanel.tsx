@@ -17,6 +17,10 @@ export function SimulationPanel() {
     setSimulationResult,
     activeSimulationResult
   } = useSimulatorStore();
+  const mlMode = useSimulatorStore(s => s.mlMode);
+  const setMlMode = useSimulatorStore(s => s.setMlMode);
+  const mlModelLoaded = useSimulatorStore(s => s.mlModelLoaded);
+  const mlLatencyMs = useSimulatorStore(s => s.mlLatencyMs);
   const { toast } = useToast();
 
   const runSimulationMutation = useRunSimulation();
@@ -96,7 +100,35 @@ export function SimulationPanel() {
 
   return (
     <div className="h-44 border-t border-border bg-card/80 backdrop-blur-xl flex z-20">
-      <div className="w-64 border-r border-border p-4 flex flex-col justify-center items-center gap-3 bg-background/50">
+      <div className="w-64 border-r border-border flex flex-col justify-center items-center bg-background/50">
+        {/* ML Mode Toggle */}
+        <div className="flex items-center gap-2 p-3 border-b border-border w-full">
+          <span className="text-xs font-medium text-muted-foreground">Mode:</span>
+          <button
+            className={clsx(
+              "text-xs px-2 py-1 rounded transition-colors",
+              mlMode === 'instant' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+            )}
+            onClick={() => setMlMode('instant')}
+            disabled={!mlModelLoaded}
+            title={!mlModelLoaded ? 'ML model not loaded' : 'Switch to ML instant predictions'}
+          >
+            ⚡ ML Instant
+          </button>
+          <button
+            className={clsx(
+              "text-xs px-2 py-1 rounded transition-colors",
+              mlMode === 'physics' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+            )}
+            onClick={() => setMlMode('physics')}
+          >
+            🔬 Physics
+          </button>
+          {mlMode === 'instant' && mlLatencyMs != null && (
+            <span className="text-xs text-muted-foreground">{mlLatencyMs.toFixed(1)}ms</span>
+          )}
+        </div>
+        <div className="flex-1 flex flex-col justify-center items-center gap-3 p-4 w-full">
         <Button
           size="lg"
           onClick={handleSimulate}
@@ -123,6 +155,7 @@ export function SimulationPanel() {
         <div className="text-xs text-muted-foreground flex items-center justify-between w-full px-1">
           <span>{nodes.length} component{nodes.length !== 1 ? 's' : ''}</span>
           <span>{edges.length} connection{edges.length !== 1 ? 's' : ''}</span>
+        </div>
         </div>
       </div>
 

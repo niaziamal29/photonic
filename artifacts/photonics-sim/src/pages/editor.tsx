@@ -8,11 +8,13 @@ import { ComponentLibrary } from '@/components/panels/ComponentLibrary';
 import { PropertiesPanel } from '@/components/panels/PropertiesPanel';
 import { DiagnosticsPanel } from '@/components/panels/DiagnosticsPanel';
 import { SimulationPanel } from '@/components/panels/SimulationPanel';
+import { InverseDesignPanel } from '@/components/panels/InverseDesignPanel';
 import { Activity, Save, ArrowLeft, Loader2, Gauge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useMlPredictions } from '@/hooks/use-ml-predictions';
 import { Edge } from '@xyflow/react';
 
 export default function Editor() {
@@ -20,6 +22,9 @@ export default function Editor() {
   const [, setLocation] = useLocation();
   const buildId = parseInt(params.id || '0');
   const { toast } = useToast();
+
+  // Wire up ML prediction hook (debounced, runs when mlMode === 'instant')
+  useMlPredictions();
 
   const { data: build, isLoading } = useGetBuild(buildId);
   const updateBuildMutation = useUpdateBuild();
@@ -176,7 +181,7 @@ export default function Editor() {
         <div className="w-80 bg-card/50 backdrop-blur-xl border-l border-border flex flex-col tech-border z-20">
           <Tabs value={activePanelTab} onValueChange={(v: any) => setActivePanelTab(v)} className="flex-1 flex flex-col h-full">
             <div className="p-2 border-b border-border bg-background/50">
-              <TabsList className="w-full grid grid-cols-2 bg-black/40 p-1 border border-white/5">
+              <TabsList className="w-full grid grid-cols-3 bg-black/40 p-1 border border-white/5">
                 <TabsTrigger value="properties" className="text-xs data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
                   Properties
                 </TabsTrigger>
@@ -185,6 +190,9 @@ export default function Editor() {
                   {issueCount > 0 && (
                     <span className="absolute -top-1 -right-1 w-3 h-3 bg-destructive rounded-full border-2 border-background animate-pulse" />
                   )}
+                </TabsTrigger>
+                <TabsTrigger value="inverse-design" className="text-xs data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+                  Design
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -195,6 +203,9 @@ export default function Editor() {
               </TabsContent>
               <TabsContent value="diagnostics" className="m-0 h-full data-[state=active]:flex flex-col">
                 <DiagnosticsPanel />
+              </TabsContent>
+              <TabsContent value="inverse-design" className="m-0 h-full data-[state=active]:flex flex-col overflow-y-auto">
+                <InverseDesignPanel />
               </TabsContent>
             </div>
           </Tabs>

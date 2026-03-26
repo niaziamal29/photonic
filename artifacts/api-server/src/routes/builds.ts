@@ -1,9 +1,58 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod";
+import rateLimit from "express-rate-limit";
 import { db, buildsTable, simulationsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { runPhotonicsSimulation } from "../lib/photonicsEngine.js";
+import { validateBody } from "../middleware/validate.js";
 
 const router: IRouter = Router();
+
+// ---------- Zod schemas ----------
+
+const createBuildSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(2000).optional(),
+  targetWavelength: z.number().min(400).max(2000).default(1550),
+  targetPower: z.number().min(-40).max(30).optional(),
+  targetSNR: z.number().min(0).max(100).optional(),
+  layout: z.object({
+    components: z
+      .array(
+        z.object({
+          id: z.string(),
+          type: z.string(),
+          label: z.string(),
+          x: z.number(),
+          y: z.number(),
+          params: z.record(z.number().optional()),
+        }),
+      )
+      .max(200),
+    connections: z
+      .array(
+        z.object({
+          id: z.string(),
+          fromComponentId: z.string(),
+          fromPort: z.string(),
+          toComponentId: z.string(),
+          toPort: z.string(),
+        }),
+      )
+      .max(500),
+  }),
+});
+
+// ---------- Rate limiters ----------
+
+const simulationLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// ---------- Routes ----------
 
 router.get("/", async (req, res) => {
   try {
@@ -15,13 +64,9 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", validateBody(createBuildSchema), async (req, res) => {
   try {
     const { name, description, targetWavelength, targetPower, targetSNR, layout } = req.body;
-    if (!name || !layout) {
-      res.status(400).json({ error: "VALIDATION_ERROR", message: "name and layout are required" });
-      return;
-    }
     const [build] = await db.insert(buildsTable).values({
       name,
       description,
@@ -59,7 +104,7 @@ router.get("/:buildId", async (req, res) => {
   }
 });
 
-router.put("/:buildId", async (req, res) => {
+router.put("/:buildId", validateBody(createBuildSchema.partial()), async (req, res) => {
   try {
     const buildId = parseInt(req.params.buildId);
     if (isNaN(buildId)) {
@@ -94,7 +139,11 @@ router.delete("/:buildId", async (req, res) => {
       res.status(400).json({ error: "INVALID_ID", message: "Build ID must be a number" });
       return;
     }
-    await db.delete(buildsTable).where(eq(buildsTable.id, buildId));
+    const result = await db.delete(buildsTable).where(eq(buildsTable.id, buildId)).returning();
+    if (result.length === 0) {
+      res.status(404).json({ error: "NOT_FOUND", message: `Build ${buildId} not found` });
+      return;
+    }
     res.status(204).end();
   } catch (err) {
     req.log.error({ err }, "Failed to delete build");
@@ -102,7 +151,7 @@ router.delete("/:buildId", async (req, res) => {
   }
 });
 
-router.post("/:buildId/simulate", async (req, res) => {
+router.post("/:buildId/simulate", simulationLimiter, async (req, res) => {
   try {
     const buildId = parseInt(req.params.buildId);
     if (isNaN(buildId)) {
@@ -136,7 +185,7 @@ router.post("/:buildId/simulate", async (req, res) => {
       equilibriumScore: simOutput.equilibriumScore,
       componentResults: simOutput.componentResults,
       issues: simOutput.issues,
-      converged: simOutput.converged.toString(),
+      converged: simOutput.converged,
       suggestions: simOutput.suggestions,
     }).returning();
 
@@ -149,7 +198,7 @@ router.post("/:buildId/simulate", async (req, res) => {
 
     res.json({
       ...sim,
-      converged: sim.converged === "true",
+      converged: sim.converged,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to run simulation");
@@ -167,7 +216,7 @@ router.get("/:buildId/simulations", async (req, res) => {
     const sims = await db.select().from(simulationsTable)
       .where(eq(simulationsTable.buildId, buildId))
       .orderBy(simulationsTable.iterationNumber);
-    res.json(sims.map(s => ({ ...s, converged: s.converged === "true" })));
+    res.json(sims);
   } catch (err) {
     req.log.error({ err }, "Failed to list simulations");
     res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to list simulations" });

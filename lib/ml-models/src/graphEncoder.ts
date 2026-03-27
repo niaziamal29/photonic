@@ -7,6 +7,8 @@ export const NODE_FEATURE_DIM = NUM_COMPONENT_TYPES + NUM_PARAMS;
 
 /** Total edge feature dimension: one-hot fromPort + one-hot toPort */
 export const EDGE_FEATURE_DIM = PORT_VOCAB_SIZE * 2;
+/** Edge feature schema: [one_hot(from_port, PORT_VOCAB_SIZE) || one_hot(to_port, PORT_VOCAB_SIZE)] */
+export const EDGE_FEATURE_SCHEMA = "one_hot(from_port)||one_hot(to_port)" as const;
 
 export function encodeNodeFeatures(
   type: string,

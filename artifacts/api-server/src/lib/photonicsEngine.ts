@@ -1,19 +1,4 @@
-export type ComponentType =
-  | "laser_source"
-  | "waveguide"
-  | "beam_splitter"
-  | "coupler"
-  | "modulator"
-  | "photodetector"
-  | "optical_amplifier"
-  | "phase_shifter"
-  | "filter"
-  | "isolator"
-  | "circulator"
-  | "mzi"
-  | "ring_resonator"
-  | "grating_coupler"
-  | "mirror";
+import type { ComponentType } from "./componentTypes.js";
 
 export interface ComponentParams {
   wavelength?: number;

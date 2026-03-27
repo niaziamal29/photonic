@@ -276,7 +276,7 @@ components:
           description: Phase shift in radians
         bandwidth:
           type: number
-          description: Bandwidth in GHz
+          description: Bandwidth in GHz (for filters, this is frequency-domain passband width)
         extinctionRatio:
           type: number
           description: Modulation extinction ratio in dB

@@ -59,7 +59,7 @@ export interface ComponentParams {
   responsivity?: number;
   /** Phase shift in radians */
   phaseShift?: number;
-  /** Bandwidth in GHz */
+  /** Bandwidth in GHz (for filters, this is frequency-domain passband width) */
   bandwidth?: number;
   /** Modulation extinction ratio in dB */
   extinctionRatio?: number;

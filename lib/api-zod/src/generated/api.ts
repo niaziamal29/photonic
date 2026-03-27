@@ -79,7 +79,7 @@ export const ListBuildsResponseItem = zod.object({
             .number()
             .optional()
             .describe("Phase shift in radians"),
-          bandwidth: zod.number().optional().describe("Bandwidth in GHz"),
+          bandwidth: zod.number().optional().describe("Bandwidth in GHz (for filters, this is frequency-domain passband width)"),
           extinctionRatio: zod
             .number()
             .optional()
@@ -171,7 +171,7 @@ export const CreateBuildBody = zod.object({
             .number()
             .optional()
             .describe("Phase shift in radians"),
-          bandwidth: zod.number().optional().describe("Bandwidth in GHz"),
+          bandwidth: zod.number().optional().describe("Bandwidth in GHz (for filters, this is frequency-domain passband width)"),
           extinctionRatio: zod
             .number()
             .optional()
@@ -263,7 +263,7 @@ export const GetBuildResponse = zod.object({
             .number()
             .optional()
             .describe("Phase shift in radians"),
-          bandwidth: zod.number().optional().describe("Bandwidth in GHz"),
+          bandwidth: zod.number().optional().describe("Bandwidth in GHz (for filters, this is frequency-domain passband width)"),
           extinctionRatio: zod
             .number()
             .optional()
@@ -365,7 +365,7 @@ export const UpdateBuildBody = zod.object({
               .number()
               .optional()
               .describe("Phase shift in radians"),
-            bandwidth: zod.number().optional().describe("Bandwidth in GHz"),
+            bandwidth: zod.number().optional().describe("Bandwidth in GHz (for filters, this is frequency-domain passband width)"),
             extinctionRatio: zod
               .number()
               .optional()
@@ -451,7 +451,7 @@ export const UpdateBuildResponse = zod.object({
             .number()
             .optional()
             .describe("Phase shift in radians"),
-          bandwidth: zod.number().optional().describe("Bandwidth in GHz"),
+          bandwidth: zod.number().optional().describe("Bandwidth in GHz (for filters, this is frequency-domain passband width)"),
           extinctionRatio: zod
             .number()
             .optional()
@@ -673,7 +673,7 @@ export const ListComponentTemplatesResponseItem = zod.object({
       .optional()
       .describe("Detector responsivity in A\/W"),
     phaseShift: zod.number().optional().describe("Phase shift in radians"),
-    bandwidth: zod.number().optional().describe("Bandwidth in GHz"),
+    bandwidth: zod.number().optional().describe("Bandwidth in GHz (for filters, this is frequency-domain passband width)"),
     extinctionRatio: zod
       .number()
       .optional()

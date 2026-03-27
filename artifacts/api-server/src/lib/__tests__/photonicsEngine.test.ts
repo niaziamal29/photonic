@@ -101,6 +101,44 @@ describe('graph power propagation', () => {
   });
 });
 
+describe('filter passband validation', () => {
+  it('does not report out-of-band when signal is within half-bandwidth in frequency domain', () => {
+    const layout: CircuitLayout = {
+      components: [
+        { id: 'l', type: 'laser_source', label: 'L', x: 0, y: 0, params: { power: 0, wavelength: 1550.0801429174553, bandwidth: 0.1 } },
+        { id: 'f', type: 'filter', label: 'F', x: 100, y: 0, params: { wavelength: 1550, bandwidth: 40, loss: 1 } },
+        { id: 'd', type: 'photodetector', label: 'D', x: 200, y: 0, params: { responsivity: 0.8 } },
+      ],
+      connections: [
+        { id: 'e1', fromComponentId: 'l', fromPort: 'out', toComponentId: 'f', toPort: 'in' },
+        { id: 'e2', fromComponentId: 'f', fromPort: 'out', toComponentId: 'd', toPort: 'in' },
+      ],
+    };
+
+    const result = runPhotonicsSimulation(layout, 1550.0801429174553);
+    expect(result.issues.some((issue) => issue.code === 'FILTER_OUT_OF_BAND')).toBe(false);
+  });
+
+  it('reports out-of-band when signal exceeds half-bandwidth in frequency domain', () => {
+    const layout: CircuitLayout = {
+      components: [
+        { id: 'l', type: 'laser_source', label: 'L', x: 0, y: 0, params: { power: 0, wavelength: 1550.2404536177264, bandwidth: 0.1 } },
+        { id: 'f', type: 'filter', label: 'F', x: 100, y: 0, params: { wavelength: 1550, bandwidth: 40, loss: 1 } },
+        { id: 'd', type: 'photodetector', label: 'D', x: 200, y: 0, params: { responsivity: 0.8 } },
+      ],
+      connections: [
+        { id: 'e1', fromComponentId: 'l', fromPort: 'out', toComponentId: 'f', toPort: 'in' },
+        { id: 'e2', fromComponentId: 'f', fromPort: 'out', toComponentId: 'd', toPort: 'in' },
+      ],
+    };
+
+    const result = runPhotonicsSimulation(layout, 1550.2404536177264);
+    const outOfBandIssue = result.issues.find((issue) => issue.code === 'FILTER_OUT_OF_BAND');
+    expect(outOfBandIssue).toBeDefined();
+    expect(outOfBandIssue?.message).toContain('GHz');
+  });
+});
+
 describe('cycle handling', () => {
   it('ring resonator feedback loop emits FEEDBACK_LOOP warning', () => {
     const layout: CircuitLayout = {

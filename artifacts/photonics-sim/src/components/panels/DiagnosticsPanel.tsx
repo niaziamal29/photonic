@@ -5,7 +5,93 @@ import { clsx } from 'clsx';
 import { Badge } from '@/components/ui/badge';
 
 export function DiagnosticsPanel() {
-  const { activeSimulationResult, setSelectedNode } = useSimulatorStore();
+  const {
+    activeSimulationResult,
+    setSelectedNode,
+    mlMode,
+    mlPredictions,
+    nodes,
+  } = useSimulatorStore();
+
+  if (mlMode === 'instant' && mlPredictions) {
+    const nodeLabels = new Map(nodes.map((node) => [node.id, node.data.label]));
+    const predictedIssues = mlPredictions.nodeOutputs.filter(
+      (prediction) => prediction.status !== 'ok',
+    );
+
+    if (predictedIssues.length === 0) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-14 h-14 rounded-full bg-primary/15 flex items-center justify-center mb-3">
+            <CheckCircle className="w-8 h-8 text-primary" />
+          </div>
+          <p className="text-sm font-medium">ML preview looks healthy</p>
+          <p className="text-xs mt-1 text-muted-foreground">
+            Instant mode is not reporting any predicted warning or error states. Run a physics
+            simulation for full issue messages and suggestions.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col h-full">
+        <div className="p-4 border-b border-border bg-background/50">
+          <div className="flex justify-between items-center">
+            <h3 className="font-semibold text-sm">ML Preview</h3>
+            <Badge className="text-[10px] px-1.5 bg-primary/15 text-primary border-primary/30">
+              {predictedIssues.length} flagged
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            These are predicted component states from the instant model. Run a physics simulation
+            for detailed issue text and remediation.
+          </p>
+        </div>
+
+        <ScrollArea className="flex-1 p-3">
+          <div className="space-y-2">
+            {predictedIssues.map((prediction) => {
+              const isError = prediction.status === 'error';
+              const Icon = isError ? XCircle : AlertTriangle;
+              const colorClass = isError ? 'text-red-400' : 'text-amber-400';
+              const bgClass = isError
+                ? 'border-red-500/20 hover:bg-red-500/5'
+                : 'border-amber-500/20 hover:bg-amber-500/5';
+              const label = nodeLabels.get(prediction.componentId) ?? prediction.componentId;
+
+              return (
+                <div
+                  key={prediction.componentId}
+                  className={clsx(
+                    "p-3 rounded-lg border transition-all cursor-pointer",
+                    bgClass
+                  )}
+                  onClick={() => setSelectedNode(prediction.componentId)}
+                >
+                  <div className="flex gap-2.5">
+                    <Icon className={clsx("w-4 h-4 shrink-0 mt-0.5", colorClass)} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm mb-1">
+                        {label} is predicted to be in a {prediction.status} state.
+                      </p>
+                      <div className="text-xs text-muted-foreground bg-background/50 rounded p-2 border border-border/50">
+                        <span className="font-medium text-foreground/70">Next step: </span>
+                        Run a physics simulation to get detailed diagnostics and fix suggestions.
+                      </div>
+                      <div className="flex items-center text-[10px] text-muted-foreground mt-1.5 hover:text-foreground transition-colors">
+                        Click to select component <ChevronRight className="w-3 h-3 ml-0.5" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </ScrollArea>
+      </div>
+    );
+  }
 
   if (!activeSimulationResult) {
     return (

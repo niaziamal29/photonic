@@ -26,12 +26,32 @@ interface MLGlobalPrediction {
   systemLoss: number;
   totalOutputPower: number;
   snr: number;
+  coherenceLength?: number | null;
 }
 
 export interface PredictionOutput {
   nodeOutputs: MLNodePrediction[];
   globalOutputs: MLGlobalPrediction;
   latencyMs: number;
+}
+
+type NodeStatus = 'ok' | 'warning' | 'error';
+
+function applyNodeStatuses(
+  nodes: PhotonNode[],
+  statuses: ReadonlyMap<string, NodeStatus> = new Map(),
+): PhotonNode[] {
+  return nodes.map((node) => {
+    const status = statuses.get(node.id);
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        hasError: status === 'error',
+        hasWarning: status === 'warning',
+      },
+    };
+  });
 }
 
 interface SimulatorState {
@@ -117,24 +137,17 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
     // When we get results, we might want to highlight nodes with errors
     if (!result) return { activeSimulationResult: null };
     
-    const nodeUpdates = new Map();
-    result.componentResults.forEach(cr => {
+    const nodeUpdates = new Map<string, NodeStatus>();
+    result.componentResults.forEach((cr: any) => {
       nodeUpdates.set(cr.componentId, cr.status);
     });
-
-    const updatedNodes = state.nodes.map(n => ({
-      ...n,
-      data: {
-        ...n.data,
-        hasError: nodeUpdates.get(n.id) === 'error',
-        hasWarning: nodeUpdates.get(n.id) === 'warning'
-      }
-    }));
 
     return { 
       activeSimulationResult: result,
       activePanelTab: result.issues.length > 0 ? 'diagnostics' : 'properties',
-      nodes: updatedNodes
+      nodes: state.mlMode === 'instant' && state.mlPredictions
+        ? state.nodes
+        : applyNodeStatuses(state.nodes, nodeUpdates),
     };
   }),
   setActivePanelTab: (tab) => set({ activePanelTab: tab }),
@@ -144,10 +157,37 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
   }),
 
   // ML Actions
-  setMlPredictions: (predictions) => set({
-    mlPredictions: predictions,
-    mlLatencyMs: predictions?.latencyMs ?? null,
+  setMlPredictions: (predictions) => set((state) => {
+    const nodeUpdates = new Map<string, NodeStatus>();
+    predictions?.nodeOutputs.forEach((prediction) => {
+      nodeUpdates.set(prediction.componentId, prediction.status);
+    });
+
+    return {
+      mlPredictions: predictions,
+      mlLatencyMs: predictions?.latencyMs ?? null,
+      nodes: state.mlMode === 'instant'
+        ? applyNodeStatuses(state.nodes, nodeUpdates)
+        : state.nodes,
+    };
   }),
-  setMlMode: (mode) => set({ mlMode: mode }),
+  setMlMode: (mode) => set((state) => {
+    const mlStatuses = new Map<string, NodeStatus>();
+    state.mlPredictions?.nodeOutputs.forEach((prediction) => {
+      mlStatuses.set(prediction.componentId, prediction.status);
+    });
+
+    const physicsStatuses = new Map<string, NodeStatus>();
+    state.activeSimulationResult?.componentResults.forEach((component: any) => {
+      physicsStatuses.set(component.componentId, component.status);
+    });
+
+    return {
+      mlMode: mode,
+      nodes: mode === 'instant'
+        ? applyNodeStatuses(state.nodes, mlStatuses)
+        : applyNodeStatuses(state.nodes, physicsStatuses),
+    };
+  }),
   setMlModelStatus: (loaded, version) => set({ mlModelLoaded: loaded, mlModelVersion: version }),
 }));

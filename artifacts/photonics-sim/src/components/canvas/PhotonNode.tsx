@@ -1,10 +1,10 @@
-import { Handle, Position, NodeProps } from '@xyflow/react';
-import { PhotonNodeData } from '@/store/use-simulator-store';
+import { Handle, Position, type NodeProps } from '@xyflow/react';
+import type { PhotonNode } from '@/store/use-simulator-store';
 import { Activity } from 'lucide-react';
 import { clsx } from 'clsx';
 import { ICON_MAP } from '@/constants/icons';
 
-export function PhotonNode({ data, selected }: NodeProps<PhotonNodeData>) {
+export function PhotonNode({ data, selected }: NodeProps<PhotonNode>) {
   const Icon = ICON_MAP[data.type] || Activity;
 
   // Determine border color based on status

@@ -31,6 +31,7 @@ export interface GlobalPrediction {
   systemLoss: number;
   totalOutputPower: number;
   snr: number;
+  coherenceLength?: number | null;
 }
 
 export interface PredictionOutput {

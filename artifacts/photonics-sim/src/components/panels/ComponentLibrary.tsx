@@ -1,4 +1,8 @@
-import { useListComponentTemplates } from '@workspace/api-client-react';
+import {
+  type ComponentTemplate,
+  type ComponentType,
+  useListComponentTemplates,
+} from '@workspace/api-client-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Search, Activity, ChevronDown, GripVertical, BookOpen } from 'lucide-react';
@@ -10,28 +14,52 @@ import { ICON_MAP } from '@/constants/icons';
 
 const CATEGORY_ORDER = ['Sources', 'Passive', 'Active', 'Structures', 'Detectors'];
 
+type TemplateKnowledge = {
+  overview?: string;
+  keyPrinciples?: string[];
+  typicalApplications?: string[];
+  commonIssues?: string[];
+  tips?: string;
+};
+
+type ParameterDescription = {
+  label: string;
+  unit?: string;
+  description: string;
+  typicalRange?: string;
+};
+
+type LibraryComponentTemplate = ComponentTemplate & {
+  category?: string;
+  knowledge?: TemplateKnowledge;
+  parameterDescriptions?: Record<string, ParameterDescription>;
+};
+
 export function ComponentLibrary() {
   const { data: templates, isLoading } = useListComponentTemplates();
   const [search, setSearch] = useState('');
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const templateList = (templates as LibraryComponentTemplate[] | undefined) ?? [];
 
-  const onDragStart = (event: React.DragEvent, nodeType: string, label: string) => {
+  const onDragStart = (event: React.DragEvent, nodeType: ComponentType, label: string) => {
     event.dataTransfer.setData('application/reactflow', `${nodeType}|${label}`);
     event.dataTransfer.effectAllowed = 'move';
   };
 
-  const filteredTemplates = templates?.filter((t: any) =>
-    t.label.toLowerCase().includes(search.toLowerCase()) ||
-    t.type.toLowerCase().includes(search.toLowerCase()) ||
-    (t.category || '').toLowerCase().includes(search.toLowerCase())
+  const filteredTemplates = templateList.filter((template) =>
+    template.label.toLowerCase().includes(search.toLowerCase()) ||
+    template.type.toLowerCase().includes(search.toLowerCase()) ||
+    (template.category || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const grouped = CATEGORY_ORDER.map(cat => ({
     category: cat,
-    items: (filteredTemplates || []).filter((t: any) => t.category === cat),
+    items: filteredTemplates.filter((template) => template.category === cat),
   })).filter(g => g.items.length > 0);
 
-  const ungrouped = (filteredTemplates || []).filter((t: any) => !CATEGORY_ORDER.includes(t.category));
+  const ungrouped = filteredTemplates.filter(
+    (template) => !CATEGORY_ORDER.includes(template.category ?? ''),
+  );
   if (ungrouped.length > 0) {
     grouped.push({ category: 'Other', items: ungrouped });
   }
@@ -73,7 +101,7 @@ export function ComponentLibrary() {
 
                 {expandedCategory !== category && (
                   <div className="space-y-1">
-                    {items.map((template: any) => {
+                    {items.map((template) => {
                       const Icon = ICON_MAP[template.type] || Activity;
                       return (
                         <ComponentItem
@@ -89,7 +117,7 @@ export function ComponentLibrary() {
 
                 {expandedCategory === category && (
                   <div className="space-y-1">
-                    {items.map((template: any) => {
+                    {items.map((template) => {
                       const Icon = ICON_MAP[template.type] || Activity;
                       return (
                         <ComponentItem
@@ -117,7 +145,19 @@ export function ComponentLibrary() {
   );
 }
 
-function ComponentItem({ template, Icon, onDragStart }: { template: any; Icon: React.ElementType; onDragStart: (e: React.DragEvent, type: string, label: string) => void }) {
+function ComponentItem({
+  template,
+  Icon,
+  onDragStart,
+}: {
+  template: LibraryComponentTemplate;
+  Icon: React.ElementType;
+  onDragStart: (e: React.DragEvent, type: ComponentType, label: string) => void;
+}) {
+  const keyPrinciples = template.knowledge?.keyPrinciples ?? [];
+  const typicalApplications = template.knowledge?.typicalApplications ?? [];
+  const commonIssues = template.knowledge?.commonIssues ?? [];
+
   return (
     <div className="flex items-center gap-1">
       <div
@@ -170,11 +210,11 @@ function ComponentItem({ template, Icon, onDragStart }: { template: any; Icon: R
                   <p className="text-sm text-muted-foreground leading-relaxed">{template.knowledge.overview}</p>
                 </div>
 
-                {template.knowledge.keyPrinciples?.length > 0 && (
+                {keyPrinciples.length > 0 && (
                   <div>
                     <h4 className="text-sm font-semibold mb-2">Key Principles</h4>
                     <ul className="space-y-1.5">
-                      {template.knowledge.keyPrinciples.map((p: string, i: number) => (
+                      {keyPrinciples.map((p, i) => (
                         <li key={i} className="text-sm text-muted-foreground flex gap-2">
                           <span className="text-primary mt-0.5 shrink-0">•</span>
                           <span>{p}</span>
@@ -184,11 +224,11 @@ function ComponentItem({ template, Icon, onDragStart }: { template: any; Icon: R
                   </div>
                 )}
 
-                {template.knowledge.typicalApplications?.length > 0 && (
+                {typicalApplications.length > 0 && (
                   <div>
                     <h4 className="text-sm font-semibold mb-2">Common Applications</h4>
                     <div className="flex flex-wrap gap-1.5">
-                      {template.knowledge.typicalApplications.map((app: string, i: number) => (
+                      {typicalApplications.map((app, i) => (
                         <Badge key={i} variant="secondary" className="text-xs font-normal">{app}</Badge>
                       ))}
                     </div>
@@ -197,11 +237,11 @@ function ComponentItem({ template, Icon, onDragStart }: { template: any; Icon: R
 
                 <Separator />
 
-                {template.knowledge.commonIssues?.length > 0 && (
+                {commonIssues.length > 0 && (
                   <div>
                     <h4 className="text-sm font-semibold mb-2 text-amber-500">Watch Out For</h4>
                     <ul className="space-y-1">
-                      {template.knowledge.commonIssues.map((issue: string, i: number) => (
+                      {commonIssues.map((issue, i) => (
                         <li key={i} className="text-sm text-muted-foreground flex gap-2">
                           <span className="text-amber-500 mt-0.5 shrink-0">!</span>
                           <span>{issue}</span>
@@ -224,7 +264,7 @@ function ComponentItem({ template, Icon, onDragStart }: { template: any; Icon: R
               <div>
                 <h4 className="text-sm font-semibold mb-3">Parameters</h4>
                 <div className="space-y-3">
-                  {Object.entries(template.parameterDescriptions).map(([key, desc]: [string, any]) => (
+                  {Object.entries(template.parameterDescriptions).map(([key, desc]) => (
                     <div key={key} className="bg-muted/20 rounded-lg p-3 border border-border/50">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-medium">{desc.label}</span>

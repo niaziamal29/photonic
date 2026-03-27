@@ -60,10 +60,13 @@ export function useMlPredictions() {
       if (resp.ok) {
         const data = await resp.json();
         setMlPredictions(data);
+      } else {
+        setMlPredictions(null);
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         console.warn('ML prediction failed:', err);
+        setMlPredictions(null);
       }
     }
   }, [nodes, edges, mlMode, setMlPredictions]);

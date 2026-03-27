@@ -5,11 +5,12 @@ import {
   Controls, 
   applyNodeChanges, 
   applyEdgeChanges,
-  addEdge,
-  Connection,
-  Edge,
-  NodeChange,
-  EdgeChange,
+  type Connection,
+  type Edge,
+  type EdgeChange,
+  type NodeChange,
+  type NodeTypes,
+  type OnSelectionChangeFunc,
   ReactFlowProvider,
   BackgroundVariant
 } from '@xyflow/react';
@@ -21,7 +22,7 @@ import { ComponentType } from '@workspace/api-client-react';
 
 const nodeTypes = {
   photonNode: PhotonNodeComponent,
-};
+} satisfies NodeTypes;
 
 function FlowCanvas() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
@@ -40,7 +41,21 @@ function FlowCanvas() {
   );
 
   const onConnect = useCallback(
-    (params: Connection | Edge) => setEdges((eds) => addEdge({ ...params, animated: true, style: { strokeWidth: 2, stroke: 'hsl(var(--primary))' } }, eds)),
+    (params: Connection) => setEdges((eds) => {
+      if (!params.source || !params.target) {
+        return eds;
+      }
+
+      return eds.concat({
+        id: crypto.randomUUID(),
+        source: params.source,
+        target: params.target,
+        sourceHandle: params.sourceHandle ?? null,
+        targetHandle: params.targetHandle ?? null,
+        animated: true,
+        style: { strokeWidth: 2, stroke: 'hsl(var(--primary))' },
+      });
+    }),
     [setEdges]
   );
 
@@ -81,17 +96,13 @@ function FlowCanvas() {
     [reactFlowInstance, nodes.length, setNodes]
   );
 
-  const onSelectionChange = useCallback(({ nodes }: { nodes: PhotonNode[] }) => {
-    if (nodes.length === 1) {
-      setSelectedNode(nodes[0].id);
-    } else {
-      setSelectedNode(null);
-    }
+  const onSelectionChange = useCallback<OnSelectionChangeFunc>(({ nodes }) => {
+    setSelectedNode(nodes.length === 1 ? nodes[0]?.id ?? null : null);
   }, [setSelectedNode]);
 
   return (
     <div className="flex-1 h-full w-full relative bg-[#060913]" ref={reactFlowWrapper}>
-      <ReactFlow
+      <ReactFlow<PhotonNode, Edge>
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}

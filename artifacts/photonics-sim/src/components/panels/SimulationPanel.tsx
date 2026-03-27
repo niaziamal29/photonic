@@ -21,6 +21,7 @@ export function SimulationPanel() {
   const setMlMode = useSimulatorStore(s => s.setMlMode);
   const mlModelLoaded = useSimulatorStore(s => s.mlModelLoaded);
   const mlLatencyMs = useSimulatorStore(s => s.mlLatencyMs);
+  const mlPredictions = useSimulatorStore(s => s.mlPredictions);
   const { toast } = useToast();
 
   const runSimulationMutation = useRunSimulation();
@@ -84,8 +85,12 @@ export function SimulationPanel() {
     }
   };
 
+  const showingMlPreview = mlMode === 'instant' && mlPredictions !== null;
   const res = activeSimulationResult;
-  const score = res?.equilibriumScore || 0;
+  const previewMetrics = mlPredictions?.globalOutputs;
+  const score = showingMlPreview
+    ? (previewMetrics?.equilibriumScore ?? 0)
+    : (res?.equilibriumScore || 0);
 
   const getScoreLabel = (s: number) => {
     if (s >= 90) return { text: 'Excellent', color: 'text-green-400' };
@@ -95,7 +100,7 @@ export function SimulationPanel() {
     return { text: 'Critical', color: 'text-red-400' };
   };
 
-  const scoreLabel = res ? getScoreLabel(score) : null;
+  const scoreLabel = (showingMlPreview || res) ? getScoreLabel(score) : null;
   const scoreColor = score > 90 ? 'bg-green-500' : score > 50 ? 'bg-amber-500' : 'bg-red-500';
 
   return (
@@ -103,7 +108,7 @@ export function SimulationPanel() {
       <div className="w-64 border-r border-border flex flex-col justify-center items-center bg-background/50">
         {/* ML Mode Toggle */}
         <div className="flex items-center gap-2 p-3 border-b border-border w-full">
-          <span className="text-xs font-medium text-muted-foreground">Mode:</span>
+              <span className="text-xs font-medium text-muted-foreground">Mode:</span>
           <button
             className={clsx(
               "text-xs px-2 py-1 rounded transition-colors",
@@ -165,12 +170,15 @@ export function SimulationPanel() {
             <div className="flex flex-col items-center gap-2 min-w-[160px] cursor-help">
               <span className="text-xs font-medium text-muted-foreground">Equilibrium Score</span>
               <div className="flex items-baseline gap-1">
-                <span className={clsx("text-4xl font-bold tabular-nums", scoreLabel?.color || 'text-muted-foreground')}>
-                  {res ? score.toFixed(0) : '--'}
+              <span className={clsx("text-4xl font-bold tabular-nums", scoreLabel?.color || 'text-muted-foreground')}>
+                  {(showingMlPreview || res) ? score.toFixed(0) : '--'}
                 </span>
                 <span className="text-lg text-muted-foreground">/100</span>
               </div>
               {scoreLabel && <span className={clsx("text-xs font-medium", scoreLabel.color)}>{scoreLabel.text}</span>}
+              {showingMlPreview && (
+                <span className="text-[10px] uppercase tracking-wider text-primary/80">ML Preview</span>
+              )}
               <Progress
                 value={score}
                 className="w-full h-1.5 bg-background border border-border"
@@ -186,32 +194,58 @@ export function SimulationPanel() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 flex-1">
           <MetricBox
             label="System Loss"
-            value={res ? res.systemLoss.toFixed(1) : '--'}
+            value={
+              showingMlPreview
+                ? previewMetrics!.systemLoss.toFixed(1)
+                : res ? res.systemLoss.toFixed(1) : '--'
+            }
             unit="dB"
             icon={Activity}
-            isWarning={res && res.systemLoss > 10}
+            isWarning={
+              showingMlPreview
+                ? previewMetrics!.systemLoss > 10
+                : Boolean(res && res.systemLoss > 10)
+            }
             tooltip="Total optical power lost across all components. Lower is better. Above 10 dB may cause signal issues."
           />
           <MetricBox
             label="Output Power"
-            value={res ? res.totalOutputPower.toFixed(1) : '--'}
+            value={
+              showingMlPreview
+                ? previewMetrics!.totalOutputPower.toFixed(1)
+                : res ? res.totalOutputPower.toFixed(1) : '--'
+            }
             unit="dBm"
             icon={Zap}
             tooltip="Optical power arriving at the detector(s). 0 dBm = 1 mW. Negative values mean less than 1 mW."
           />
           <MetricBox
             label="Coherence"
-            value={res ? res.coherenceLength.toFixed(1) : '--'}
+            value={
+              showingMlPreview
+                ? typeof previewMetrics?.coherenceLength === 'number'
+                  ? previewMetrics.coherenceLength.toFixed(1)
+                  : '--'
+                : res ? res.coherenceLength.toFixed(1) : '--'
+            }
             unit="mm"
             icon={Waves}
             tooltip="The distance over which the light maintains phase coherence. Longer coherence enables interference-based devices like MZIs and ring resonators."
           />
           <MetricBox
             label="Signal/Noise"
-            value={res ? res.snr.toFixed(1) : '--'}
+            value={
+              showingMlPreview
+                ? previewMetrics!.snr.toFixed(1)
+                : res ? res.snr.toFixed(1) : '--'
+            }
             unit="dB"
             icon={Target}
-            isWarning={res && res.snr < 20}
+            isWarning={
+              showingMlPreview
+                ? previewMetrics!.snr < 20
+                : Boolean(res && res.snr < 20)
+            }
             tooltip="Signal-to-noise ratio. Higher is better. Below 20 dB, signal quality may be too poor for reliable detection."
           />
         </div>

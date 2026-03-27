@@ -95,7 +95,39 @@ def simulate_circuit(
         sim_result = sim_resp.json()
 
         # 3. Assemble training example
+        noise_floor = -80.0
+        node_results = {
+            result["componentId"]: {
+                "power": result.get("outputPower", 0.0),
+                "snr": max(0.0, float(result.get("outputPower", 0.0)) - noise_floor),
+                "phase": result.get("phase", 0.0),
+                "status": result.get("status", "ok"),
+            }
+            for result in sim_result.get("componentResults", [])
+            if result.get("componentId") is not None
+        }
+        edge_records = [
+            {
+                "source": conn.get("fromComponentId"),
+                "target": conn.get("toComponentId"),
+                "fromPort": conn.get("fromPort", "out"),
+                "toPort": conn.get("toPort", "in"),
+            }
+            for conn in circuit["connections"]
+        ]
+
         example: dict[str, Any] = {
+            "nodes": circuit["components"],
+            "edges": edge_records,
+            "results": {
+                "nodes": node_results,
+                "global": {
+                    "eqScore": sim_result.get("equilibriumScore"),
+                    "systemLoss": sim_result.get("systemLoss"),
+                    "coherence": sim_result.get("coherenceLength"),
+                    "converged": sim_result.get("converged"),
+                },
+            },
             "graph": {
                 "components": circuit["components"],
                 "connections": circuit["connections"],

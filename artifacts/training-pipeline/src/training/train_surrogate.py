@@ -113,8 +113,33 @@ DEFAULT_PARAMS: dict[str, dict[str, float]] = {
 _TYPE_INDEX: dict[str, int] = {t: i for i, t in enumerate(COMPONENT_TYPES)}
 _PARAM_INDEX: dict[str, int] = {p: i for i, p in enumerate(PARAM_NAMES)}
 
+PORT_NAMES: list[str] = sorted(
+    [
+        "cross",
+        "drop",
+        "electrical",
+        "fiber",
+        "in",
+        "in_1",
+        "in_2",
+        "out",
+        "out_1",
+        "out_2",
+        "port_1",
+        "port_2",
+        "port_3",
+        "reflect",
+        "through",
+        "transmit",
+        "waveguide",
+    ]
+)
+PORT_VOCAB_SIZE: int = len(PORT_NAMES)
+_PORT_INDEX: dict[str, int] = {name: i for i, name in enumerate(PORT_NAMES)}
+
 # Node feature width = one-hot type (15) + normalised params (14) = 29
 NODE_FEAT_DIM: int = NUM_TYPES + NUM_PARAMS  # 29
+EDGE_FEAT_DIM: int = PORT_VOCAB_SIZE * 2  # 34
 
 # Node-level target: power, snr, phase, status_one_hot (3)  => 6
 NODE_TARGET_DIM: int = 6
@@ -123,7 +148,14 @@ NODE_TARGET_DIM: int = 6
 GLOBAL_TARGET_DIM: int = 4
 
 # Status mapping for one-hot encoding of node status
-_STATUS_MAP: dict[str, int] = {"active": 0, "saturated": 1, "failed": 2}
+_STATUS_MAP: dict[str, int] = {
+    "active": 0,
+    "ok": 0,
+    "warning": 1,
+    "saturated": 1,
+    "error": 2,
+    "failed": 2,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +214,76 @@ def _encode_status_one_hot(status: str) -> list[float]:
     return vec
 
 
+def encode_edge(edge_dict: dict[str, Any]) -> list[float]:
+    """Encode edge ports into a fixed-length feature vector."""
+    from_port = str(edge_dict.get("fromPort", edge_dict.get("sourcePort", "out")))
+    to_port = str(edge_dict.get("toPort", edge_dict.get("targetPort", "in")))
+
+    from_one_hot = [0.0] * PORT_VOCAB_SIZE
+    to_one_hot = [0.0] * PORT_VOCAB_SIZE
+
+    from_idx = _PORT_INDEX.get(from_port)
+    to_idx = _PORT_INDEX.get(to_port)
+    if from_idx is not None:
+        from_one_hot[from_idx] = 1.0
+    if to_idx is not None:
+        to_one_hot[to_idx] = 1.0
+
+    return from_one_hot + to_one_hot
+
+
+def _normalise_example_schema(example: dict[str, Any]) -> dict[str, Any]:
+    """Accept both the trainer schema and the API-generated schema."""
+    if "nodes" in example and "results" in example:
+        return example
+
+    graph = example.get("graph", {})
+    simulation = example.get("simulation", {})
+    components = list(graph.get("components", []))
+    connections = list(graph.get("connections", []))
+
+    component_results = {
+        str(result.get("componentId")): result
+        for result in simulation.get("componentResults", [])
+        if result.get("componentId") is not None
+    }
+
+    results_nodes: dict[str, dict[str, Any]] = {}
+    for component in components:
+        component_id = str(component.get("id", ""))
+        result = component_results.get(component_id, {})
+        output_power = float(result.get("outputPower", 0.0))
+        results_nodes[component_id] = {
+            "power": output_power,
+            "snr": float(simulation.get("snr", max(0.0, output_power + 80.0))),
+            "phase": float(result.get("phase", 0.0)),
+            "status": str(result.get("status", "ok")),
+        }
+
+    return {
+        "nodes": components,
+        "edges": [
+            {
+                "source": conn.get("fromComponentId"),
+                "target": conn.get("toComponentId"),
+                "fromPort": conn.get("fromPort", "out"),
+                "toPort": conn.get("toPort", "in"),
+            }
+            for conn in connections
+        ],
+        "results": {
+            "nodes": results_nodes,
+            "global": {
+                "eqScore": simulation.get("equilibriumScore", 0.0),
+                "systemLoss": simulation.get("systemLoss", 0.0),
+                "coherence": simulation.get("coherenceLength", 0.0),
+                "converged": simulation.get("converged", False),
+            },
+        },
+        "metadata": example.get("metadata", {}),
+    }
+
+
 def example_to_pyg(example: dict[str, Any]) -> Optional[Data]:
     """Convert a single training example (dict) to a PyG Data object.
 
@@ -197,6 +299,8 @@ def example_to_pyg(example: dict[str, Any]) -> Optional[Data]:
       }
     }
     """
+    example = _normalise_example_schema(example)
+
     nodes = example.get("nodes", [])
     if len(nodes) == 0:
         return None
@@ -216,12 +320,14 @@ def example_to_pyg(example: dict[str, Any]) -> Optional[Data]:
     edges = example.get("edges", [])
     src_list: list[int] = []
     dst_list: list[int] = []
+    edge_rows: list[list[float]] = []
     for e in edges:
         s = e.get("source", e.get("src"))
         t = e.get("target", e.get("dst"))
         if s in id_to_idx and t in id_to_idx:
             src_list.append(id_to_idx[s])
             dst_list.append(id_to_idx[t])
+            edge_rows.append(encode_edge(e))
 
     # --- Node-level targets [N, 6] ---
     results = example.get("results", {})
@@ -252,6 +358,11 @@ def example_to_pyg(example: dict[str, Any]) -> Optional[Data]:
         torch.tensor([src_list, dst_list], dtype=torch.long)
         if len(src_list) > 0
         else torch.zeros((2, 0), dtype=torch.long)
+    )
+    data.edge_attr = (
+        torch.tensor(edge_rows, dtype=torch.float)
+        if len(edge_rows) > 0
+        else torch.zeros((0, EDGE_FEAT_DIM), dtype=torch.float)
     )
     data.y_node = torch.tensor(y_node_rows, dtype=torch.float)
     data.y_global = torch.tensor(
@@ -410,11 +521,12 @@ def train(
         PhotonicSurrogateGNN = _FallbackSurrogateGNN  # noqa: N806
 
     model = PhotonicSurrogateGNN(
-        node_feat_dim=NODE_FEAT_DIM,
+        node_dim=NODE_FEAT_DIM,
+        edge_dim=EDGE_FEAT_DIM,
         hidden_dim=hidden_dim,
         num_layers=num_layers,
-        node_target_dim=NODE_TARGET_DIM,
-        global_target_dim=GLOBAL_TARGET_DIM,
+        node_out_dim=NODE_TARGET_DIM,
+        global_out_dim=GLOBAL_TARGET_DIM,
     )
     model = model.to(dev)
     total_params = sum(p.numel() for p in model.parameters())
@@ -439,7 +551,7 @@ def train(
             optimizer.zero_grad()
 
             pred_node, pred_global = model(
-                batch.x, batch.edge_index, batch.batch
+                batch.x, batch.edge_index, batch.edge_attr, batch.batch
             )
 
             # Gather per-graph global targets into [B, 4]
@@ -471,7 +583,7 @@ def train(
             for batch in val_loader:
                 batch = batch.to(dev)
                 pred_node, pred_global = model(
-                    batch.x, batch.edge_index, batch.batch
+                    batch.x, batch.edge_index, batch.edge_attr, batch.batch
                 )
                 y_global = batch.y_global
                 _, metrics = _compute_loss(
@@ -498,11 +610,12 @@ def train(
                     "optimizer_state_dict": optimizer.state_dict(),
                     "val_loss": best_val_loss,
                     "config": {
-                        "node_feat_dim": NODE_FEAT_DIM,
+                        "node_dim": NODE_FEAT_DIM,
+                        "edge_dim": EDGE_FEAT_DIM,
                         "hidden_dim": hidden_dim,
                         "num_layers": num_layers,
-                        "node_target_dim": NODE_TARGET_DIM,
-                        "global_target_dim": GLOBAL_TARGET_DIM,
+                        "node_out_dim": NODE_TARGET_DIM,
+                        "global_out_dim": GLOBAL_TARGET_DIM,
                     },
                 },
                 save_path,
@@ -535,11 +648,12 @@ class _FallbackSurrogateGNN(nn.Module):
 
     def __init__(
         self,
-        node_feat_dim: int = 29,
+        node_dim: int = 29,
+        edge_dim: int = EDGE_FEAT_DIM,
         hidden_dim: int = 64,
         num_layers: int = 4,
-        node_target_dim: int = 6,
-        global_target_dim: int = 4,
+        node_out_dim: int = 6,
+        global_out_dim: int = 4,
     ):
         super().__init__()
         try:
@@ -547,15 +661,15 @@ class _FallbackSurrogateGNN(nn.Module):
         except ImportError as exc:
             raise ImportError("torch_geometric is required") from exc
 
-        self.encoder = nn.Linear(node_feat_dim, hidden_dim)
+        self.encoder = nn.Linear(node_dim, hidden_dim)
         self.convs = nn.ModuleList()
         for _ in range(num_layers):
             self.convs.append(GCNConv(hidden_dim, hidden_dim))
-        self.node_head = nn.Linear(hidden_dim, node_target_dim)
+        self.node_head = nn.Linear(hidden_dim, node_out_dim)
         self.global_head = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, global_target_dim),
+            nn.Linear(hidden_dim, global_out_dim),
         )
         self._pool = None  # lazy import in forward
 
@@ -563,6 +677,7 @@ class _FallbackSurrogateGNN(nn.Module):
         self,
         x: torch.Tensor,
         edge_index: torch.Tensor,
+        edge_attr: torch.Tensor,
         batch: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         from torch_geometric.nn import global_mean_pool

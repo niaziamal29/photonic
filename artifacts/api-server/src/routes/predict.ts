@@ -49,6 +49,7 @@ router.post("/", async (req, res) => {
         systemLoss: physicsResult.systemLoss,
         totalOutputPower: physicsResult.totalOutputPower,
         snr: physicsResult.snr,
+        coherenceLength: physicsResult.coherenceLength,
       },
       latencyMs: 0,
     });

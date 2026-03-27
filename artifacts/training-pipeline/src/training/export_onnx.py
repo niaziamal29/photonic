@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 # Default architecture constants (match PhotonicsSurrogateGNN plan)
 # ---------------------------------------------------------------------------
 DEFAULT_NODE_DIM: int = 29
-DEFAULT_EDGE_DIM: int = 20  # 2 * PORT_VOCAB_SIZE, overridden at runtime
+DEFAULT_EDGE_DIM: int = 34  # 2 * PORT_VOCAB_SIZE (17 named ports)
 DEFAULT_HIDDEN_DIM: int = 128
 DEFAULT_NUM_LAYERS: int = 6
 DEFAULT_NODE_OUT_DIM: int = 6   # 3 continuous + 3 status logits
@@ -534,26 +534,45 @@ def export_to_onnx(
     # Load checkpoint
     checkpoint = torch.load(model_path, map_location="cpu", weights_only=False)
 
-    if isinstance(checkpoint, dict) and "config" in checkpoint:
-        config = checkpoint["config"]
-        state_dict = checkpoint["state_dict"]
-    elif isinstance(checkpoint, dict) and "state_dict" in checkpoint:
-        config = {}
-        state_dict = checkpoint["state_dict"]
+    if isinstance(checkpoint, dict):
+        config = checkpoint.get("config", {})
+        state_dict = checkpoint.get("model_state_dict") or checkpoint.get("state_dict")
+        if state_dict is None and all(isinstance(v, torch.Tensor) for v in checkpoint.values()):
+            state_dict = checkpoint
     else:
-        # Assume raw state dict
         config = {}
         state_dict = checkpoint
 
+    if state_dict is None:
+        raise KeyError(
+            "Checkpoint did not contain `model_state_dict`, `state_dict`, or a raw state dict."
+        )
+
+    resolved_config = {
+        "node_dim": config.get("node_dim", config.get("node_feat_dim", DEFAULT_NODE_DIM)),
+        "edge_dim": config.get("edge_dim", config.get("edge_input_dim", DEFAULT_EDGE_DIM)),
+        "hidden_dim": config.get("hidden_dim", DEFAULT_HIDDEN_DIM),
+        "num_layers": config.get("num_layers", DEFAULT_NUM_LAYERS),
+        "node_out_dim": config.get(
+            "node_out_dim",
+            config.get("node_target_dim", DEFAULT_NODE_OUT_DIM),
+        ),
+        "global_out_dim": config.get(
+            "global_out_dim",
+            config.get("global_target_dim", DEFAULT_GLOBAL_OUT_DIM),
+        ),
+        "num_heads": config.get("num_heads", DEFAULT_NUM_HEADS),
+    }
+
     # Build ONNX-ready model with matching config
     onnx_model = OnnxReadyGNN(
-        node_dim=config.get("node_dim", DEFAULT_NODE_DIM),
-        edge_dim=config.get("edge_dim", DEFAULT_EDGE_DIM),
-        hidden_dim=config.get("hidden_dim", DEFAULT_HIDDEN_DIM),
-        num_layers=config.get("num_layers", DEFAULT_NUM_LAYERS),
-        node_out_dim=config.get("node_out_dim", DEFAULT_NODE_OUT_DIM),
-        global_out_dim=config.get("global_out_dim", DEFAULT_GLOBAL_OUT_DIM),
-        num_heads=config.get("num_heads", DEFAULT_NUM_HEADS),
+        node_dim=resolved_config["node_dim"],
+        edge_dim=resolved_config["edge_dim"],
+        hidden_dim=resolved_config["hidden_dim"],
+        num_layers=resolved_config["num_layers"],
+        node_out_dim=resolved_config["node_out_dim"],
+        global_out_dim=resolved_config["global_out_dim"],
+        num_heads=resolved_config["num_heads"],
     )
     onnx_model.load_state_dict(state_dict)
     onnx_model.eval()

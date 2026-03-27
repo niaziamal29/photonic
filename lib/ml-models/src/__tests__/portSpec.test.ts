@@ -4,6 +4,7 @@ import {
   ALL_PORT_NAMES,
   PORT_NAME_TO_INDEX,
   PORT_VOCAB_SIZE,
+  EDGE_PORT_VOCAB_CARDINALITY,
   COMPONENT_TYPES,
   COMPONENT_TYPE_TO_INDEX,
   NUM_COMPONENT_TYPES,
@@ -192,6 +193,11 @@ describe('GNN encoding constants', () => {
 
   it('PORT_VOCAB_SIZE matches ALL_PORT_NAMES length', () => {
     expect(PORT_VOCAB_SIZE).toBe(ALL_PORT_NAMES.length);
+  });
+
+  it('PORT_VOCAB_SIZE matches canonical edge vocab cardinality', () => {
+    expect(PORT_VOCAB_SIZE).toBe(EDGE_PORT_VOCAB_CARDINALITY);
+    expect(EDGE_PORT_VOCAB_CARDINALITY).toBe(17);
   });
 
   it('COMPONENT_TYPES has 15 entries', () => {

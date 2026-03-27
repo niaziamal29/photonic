@@ -1,9 +1,22 @@
 import * as ort from "onnxruntime-node";
-import { encodeGraph, type PredictionOutput } from "@workspace/ml-models";
+import {
+  EDGE_FEATURE_DIM,
+  NODE_FEATURE_DIM,
+  encodeGraph,
+  type PredictionOutput,
+} from "@workspace/ml-models";
 import { logger } from "./logger.js";
 
 let session: ort.InferenceSession | null = null;
 let modelVersion: string | null = null;
+let modelContract: ModelContract | null = null;
+
+function pickName(names: readonly string[], candidates: readonly string[]): string | null {
+  for (const candidate of candidates) {
+    if (names.includes(candidate)) return candidate;
+  }
+  return null;
+}
 
 interface ModelContract {
   nodeInputName: string;
@@ -17,61 +30,58 @@ interface ModelContract {
 }
 
 function getTensorDim(
-  metadata: ort.InferenceSession["inputMetadata"][number] | undefined,
+  sessionLike: ort.InferenceSession,
+  inputName: string,
   axis: number,
   fallback: number,
 ): number {
-  if (metadata?.isTensor) {
-    const dim = metadata.shape[axis];
-    if (typeof dim === "number" && dim > 0) {
-      return dim;
-    }
+  const metadata = (sessionLike as unknown as {
+    inputMetadata?: Record<string, { shape?: unknown[]; dimensions?: unknown[] }>;
+  }).inputMetadata?.[inputName];
+  const dims = Array.isArray(metadata?.shape)
+    ? metadata.shape
+    : Array.isArray(metadata?.dimensions)
+      ? metadata.dimensions
+      : null;
+  if (dims) {
+    const dim = dims[axis];
+    if (typeof dim === "number" && dim > 0) return dim;
   }
   return fallback;
 }
 
 function resolveModelContract(session: ort.InferenceSession): ModelContract {
-  const inputMetadata = [...session.inputMetadata];
-  const outputNames = [...session.outputNames];
-  const findInputName = (candidates: string[], required = true): string | null => {
-    const match = candidates.find((name) =>
-      inputMetadata.some((metadata) => metadata.name === name),
+  const nodeInputName = pickName(session.inputNames, ["node_features", "x"]);
+  const edgeIndexName = pickName(session.inputNames, ["edge_index"]);
+  const edgeFeatureName = pickName(session.inputNames, ["edge_features", "edge_attr"]);
+  const batchInputName = pickName(session.inputNames, ["batch"]);
+  const nodeOutputName = pickName(session.outputNames, ["node_outputs", "node_predictions"]);
+  const globalOutputName = pickName(session.outputNames, ["global_outputs", "global_predictions"]);
+
+  if (!nodeInputName || !edgeIndexName || !batchInputName) {
+    throw new Error(
+      `Model inputs are incompatible. Found inputs: [${session.inputNames.join(", ")}]. ` +
+        "Expected node_features/x, edge_index, and batch.",
     );
-    if (match) return match;
-    if (required) {
-      throw new Error(`Missing required ONNX input: ${candidates.join(" or ")}`);
-    }
-    return null;
-  };
-  const findOutputName = (candidates: string[]): string => {
-    const match = candidates.find((name) => outputNames.includes(name));
-    if (!match) {
-      throw new Error(`Missing required ONNX output: ${candidates.join(" or ")}`);
-    }
-    return match;
-  };
-
-  const nodeInputName = findInputName(["node_features", "x"])!;
-  const edgeIndexName = findInputName(["edge_index"])!;
-  const edgeFeatureName = findInputName(["edge_features", "edge_attr"], false);
-  const batchInputName = findInputName(["batch"])!;
-
-  const nodeInputMeta = inputMetadata.find(
-    (metadata) => metadata.name === nodeInputName,
-  );
-  const edgeFeatureMeta = edgeFeatureName
-    ? inputMetadata.find((metadata) => metadata.name === edgeFeatureName)
-    : undefined;
+  }
+  if (!nodeOutputName || !globalOutputName) {
+    throw new Error(
+      `Model outputs are incompatible. Found outputs: [${session.outputNames.join(", ")}]. ` +
+        "Expected node_outputs/node_predictions and global_outputs/global_predictions.",
+    );
+  }
 
   return {
     nodeInputName,
     edgeIndexName,
     edgeFeatureName,
     batchInputName,
-    nodeOutputName: findOutputName(["node_outputs", "node_predictions"]),
-    globalOutputName: findOutputName(["global_outputs", "global_predictions"]),
-    nodeFeatureDim: getTensorDim(nodeInputMeta, 1, 29),
-    edgeFeatureDim: edgeFeatureName ? getTensorDim(edgeFeatureMeta, 1, 34) : 0,
+    nodeOutputName,
+    globalOutputName,
+    nodeFeatureDim: getTensorDim(session, nodeInputName, 1, NODE_FEATURE_DIM),
+    edgeFeatureDim: edgeFeatureName
+      ? getTensorDim(session, edgeFeatureName, 1, EDGE_FEATURE_DIM)
+      : 0,
   };
 }
 
@@ -99,6 +109,17 @@ export async function loadModel(
       executionProviders: ["cpu"],
     });
     const contract = resolveModelContract(newSession);
+
+    if (contract.nodeFeatureDim !== NODE_FEATURE_DIM) {
+      throw new Error(
+        `Node feature dimension mismatch: model expects ${contract.nodeFeatureDim}, encoder produces ${NODE_FEATURE_DIM}.`,
+      );
+    }
+    if (contract.edgeFeatureName && contract.edgeFeatureDim !== EDGE_FEATURE_DIM) {
+      throw new Error(
+        `Edge feature dimension mismatch: model expects ${contract.edgeFeatureDim}, encoder produces ${EDGE_FEATURE_DIM}.`,
+      );
+    }
 
     // Warm-up: first inference is 10-100x slower due to JIT
     const warmupFeeds: Record<string, ort.Tensor> = {
@@ -131,9 +152,10 @@ export async function loadModel(
     ]);
 
     session = newSession;
+    modelContract = contract;
     modelVersion = version ?? "unknown";
     logger.info(
-      { modelPath, version: modelVersion },
+      { modelPath, version: modelVersion, nodeDim: NODE_FEATURE_DIM, edgeDim: EDGE_FEATURE_DIM },
       "ML model loaded and warmed up",
     );
     return true;
@@ -144,7 +166,7 @@ export async function loadModel(
 }
 
 export function isModelLoaded(): boolean {
-  return session !== null;
+  return session !== null && modelContract !== null;
 }
 
 export function getModelVersion(): string | null {
@@ -169,11 +191,12 @@ export async function predict(
   }>,
 ): Promise<PredictionOutput | null> {
   if (!session) return null;
+  if (!modelContract) return null;
 
   const start = performance.now();
 
   try {
-    const contract = resolveModelContract(session);
+    const contract = modelContract;
     const encoded = encodeGraph(components, connections);
     const numNodes = encoded.nodeFeatures.length;
 

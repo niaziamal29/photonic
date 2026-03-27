@@ -33,19 +33,35 @@ from typing import Tuple
 import torch
 import torch.nn as nn
 from torch import Tensor
+from src.models.forward_gnn import EDGE_INPUT_DIM, NODE_INPUT_DIM, PORT_VOCAB_SIZE
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Default architecture constants (match PhotonicsSurrogateGNN plan)
 # ---------------------------------------------------------------------------
-DEFAULT_NODE_DIM: int = 29
-DEFAULT_EDGE_DIM: int = 34  # 2 * PORT_VOCAB_SIZE (17 named ports)
+DEFAULT_NODE_DIM: int = NODE_INPUT_DIM
+DEFAULT_PORT_VOCAB_SIZE: int = PORT_VOCAB_SIZE
+DEFAULT_EDGE_DIM: int = EDGE_INPUT_DIM
 DEFAULT_HIDDEN_DIM: int = 128
 DEFAULT_NUM_LAYERS: int = 6
 DEFAULT_NODE_OUT_DIM: int = 6   # 3 continuous + 3 status logits
 DEFAULT_GLOBAL_OUT_DIM: int = 4
 DEFAULT_NUM_HEADS: int = 4
+
+
+def _get_config_dim(config: dict, canonical_key: str, default: int) -> int:
+    """Resolve dimension keys with backward-compatible aliases."""
+    aliases = {
+        "node_dim": ("node_dim", "node_input_dim"),
+        "edge_dim": ("edge_dim", "edge_input_dim"),
+    }.get(canonical_key, (canonical_key,))
+
+    for key in aliases:
+        value = config.get(key)
+        if value is not None:
+            return int(value)
+    return default
 
 
 # ===================================================================== #
@@ -204,7 +220,7 @@ class OnnxReadyGNN(nn.Module):
     node_dim : int
         Input node feature dimension (default 29).
     edge_dim : int
-        Input edge feature dimension (default 20).
+        Input edge feature dimension (default 34 = 2 * 17-port vocabulary).
     hidden_dim : int
         Hidden dimension (default 128).
     num_layers : int
@@ -785,8 +801,8 @@ def main() -> None:
             state_dict = checkpoint
 
         model = OnnxReadyGNN(
-            node_dim=config.get("node_dim", DEFAULT_NODE_DIM),
-            edge_dim=config.get("edge_dim", DEFAULT_EDGE_DIM),
+            node_dim=_get_config_dim(config, "node_dim", DEFAULT_NODE_DIM),
+            edge_dim=_get_config_dim(config, "edge_dim", DEFAULT_EDGE_DIM),
             hidden_dim=config.get("hidden_dim", DEFAULT_HIDDEN_DIM),
             num_layers=config.get("num_layers", DEFAULT_NUM_LAYERS),
             node_out_dim=config.get("node_out_dim", DEFAULT_NODE_OUT_DIM),

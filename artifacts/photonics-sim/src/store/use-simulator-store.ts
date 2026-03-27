@@ -12,6 +12,35 @@ export type PhotonNodeData = {
 
 export type PhotonNode = Node<PhotonNodeData>;
 
+const normalizeHandle = (handle: string | null | undefined, fallback: string): string =>
+  handle ?? fallback;
+
+const getEdgeIdBase = (connection: FlowConnection): string => {
+  const sourceHandle = normalizeHandle(connection.sourceHandle, 'out');
+  const targetHandle = normalizeHandle(connection.targetHandle, 'in');
+  return `e-${connection.source}-${sourceHandle}-${connection.target}-${targetHandle}`;
+};
+
+const getUniqueEdgeId = (connection: FlowConnection, edges: Edge[]): string => {
+  const baseId = getEdgeIdBase(connection);
+
+  if (!edges.some((edge) => edge.id === baseId)) {
+    return baseId;
+  }
+
+  const suffixPattern = new RegExp(`^${baseId}-(\\d+)$`);
+  let maxSuffix = 1;
+
+  edges.forEach((edge) => {
+    const match = edge.id.match(suffixPattern);
+    if (match) {
+      maxSuffix = Math.max(maxSuffix, Number(match[1]));
+    }
+  });
+
+  return `${baseId}-${maxSuffix + 1}`;
+};
+
 // ML prediction types (local definitions to avoid cross-package build issues)
 interface MLNodePrediction {
   componentId: string;
@@ -123,7 +152,7 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
 
   onConnect: (connection) => set((state) => ({
     edges: [...state.edges, { 
-      id: `e-${connection.source}-${connection.target}`, 
+      id: getUniqueEdgeId(connection, state.edges),
       ...connection,
       animated: true, // Make connections pulse by default
       style: { strokeWidth: 2 }

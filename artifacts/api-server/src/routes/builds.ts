@@ -5,6 +5,7 @@ import { db, buildsTable, simulationsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { runPhotonicsSimulation } from "../lib/photonicsEngine.js";
 import { validateBody } from "../middleware/validate.js";
+import { SUPPORTED_COMPONENT_TYPES } from "../lib/componentTypes.js";
 
 const router: IRouter = Router();
 
@@ -14,6 +15,17 @@ function parseBuildId(param: string | string[] | undefined): number {
 }
 
 // ---------- Zod schemas ----------
+
+const componentTypeSchema = z.string().superRefine((value, ctx) => {
+  if (SUPPORTED_COMPONENT_TYPES.includes(value as (typeof SUPPORTED_COMPONENT_TYPES)[number])) {
+    return;
+  }
+
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    message: `Unsupported component type "${value}". Supported types: ${SUPPORTED_COMPONENT_TYPES.join(", ")}`,
+  });
+}).pipe(z.enum(SUPPORTED_COMPONENT_TYPES));
 
 const createBuildSchema = z.object({
   name: z.string().min(1).max(200),
@@ -26,7 +38,7 @@ const createBuildSchema = z.object({
       .array(
         z.object({
           id: z.string(),
-          type: z.string(),
+          type: componentTypeSchema,
           label: z.string(),
           x: z.number(),
           y: z.number(),

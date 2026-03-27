@@ -393,7 +393,7 @@ const componentLibrary = [
       bandwidth: {
         label: "Passband Width",
         unit: "GHz",
-        description: "The width of the wavelength window that passes through. Narrower = more selective. 100 GHz ≈ 0.8nm at 1550nm.",
+        description: "The width of the frequency passband that passes through. Narrower = more selective. 100 GHz ≈ 0.8nm near 1550nm.",
         typicalRange: "10–400 GHz",
         impact: "Must be wide enough to pass your signal but narrow enough to reject adjacent channels."
       }

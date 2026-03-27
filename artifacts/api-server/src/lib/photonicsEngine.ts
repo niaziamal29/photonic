@@ -106,6 +106,12 @@ function computeCoherenceLength(wavelength_nm: number, bandwidth_GHz: number): n
   return (c / delta_nu) * 1e3; // meters → millimeters
 }
 
+function wavelengthNmToFrequencyGHz(wavelengthNm: number): number {
+  // ν = c / λ, with c in m/s and λ in nm converted to m.
+  // Simplified constant gives GHz directly.
+  return 299_792_458 / wavelengthNm;
+}
+
 function topologicalSort(
   components: CircuitComponent[],
   connections: Connection[],
@@ -370,11 +376,19 @@ export function runPhotonicsSimulation(layout: CircuitLayout, targetWavelength: 
       }
       case "filter": {
         loss = params.loss ?? 1.0;
-        const bw = params.bandwidth ?? 100;
-        const passWavelength = params.wavelength ?? targetWavelength;
-        const filterMismatch = Math.abs(passWavelength - targetWavelength);
-        if (filterMismatch > bw / 2) {
-          issues.push({ code: "FILTER_OUT_OF_BAND", severity: "error", message: `Signal at ${targetWavelength}nm is outside filter passband at ${passWavelength}nm ±${bw / 2}GHz`, suggestion: `Tune filter center to ${targetWavelength}nm`, componentId: comp.id });
+        const bandwidthGHz = params.bandwidth ?? 100;
+        const passWavelengthNm = params.wavelength ?? targetWavelength;
+        const signalFrequencyGHz = wavelengthNmToFrequencyGHz(targetWavelength);
+        const passbandCenterGHz = wavelengthNmToFrequencyGHz(passWavelengthNm);
+        const detuningGHz = Math.abs(passbandCenterGHz - signalFrequencyGHz);
+        if (detuningGHz > bandwidthGHz / 2) {
+          issues.push({
+            code: "FILTER_OUT_OF_BAND",
+            severity: "error",
+            message: `Signal detuning ${detuningGHz.toFixed(2)}GHz exceeds filter passband ${passbandCenterGHz.toFixed(2)}GHz ±${(bandwidthGHz / 2).toFixed(2)}GHz`,
+            suggestion: `Tune filter center to ${targetWavelength}nm`,
+            componentId: comp.id
+          });
         }
         outputPower = inputPower - loss;
         systemLoss += loss;

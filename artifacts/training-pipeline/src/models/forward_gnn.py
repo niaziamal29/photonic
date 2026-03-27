@@ -23,11 +23,12 @@ from torch_geometric.data import Data
 
 
 # ---------------------------------------------------------------------------
-# Constants
+# Feature schema constants (single source of truth for training pipeline)
 # ---------------------------------------------------------------------------
 
-NODE_INPUT_DIM: int = 29       # 15 type one-hot + 14 normalised params
-EDGE_INPUT_DIM: int = 16       # 8 port one-hot x 2 (from + to)
+NODE_INPUT_DIM: int = 29        # 15 type one-hot + 14 normalised params
+PORT_VOCAB_SIZE: int = 17       # Distinct port names in lib/ml-models/src/portSpec.ts
+EDGE_INPUT_DIM: int = PORT_VOCAB_SIZE * 2  # one-hot(from_port) + one-hot(to_port)
 HIDDEN_DIM: int = 128
 EDGE_HIDDEN_DIM: int = 64
 NUM_MPNN_LAYERS: int = 6
@@ -272,8 +273,10 @@ class PhotonicSurrogateGNN(nn.Module):
         Node features (15 type one-hot + 14 normalised parameters).
     edge_index : Tensor [2, E]
         COO edge connectivity.
-    edge_attr : Tensor [E, 16], optional
-        Edge features.  Defaults to zeros when absent.
+    edge_attr : Tensor [E, 34], optional
+        Edge features encoded as
+        ``[one_hot(from_port, 17) || one_hot(to_port, 17)]``.
+        Defaults to zeros when absent.
     batch : Tensor [N]
         Batch assignment for mini-batching.
 

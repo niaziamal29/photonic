@@ -234,6 +234,9 @@ export const PORT_SPECS: Record<ComponentType, ComponentPortSpec> = {
 // Derived constants for GNN encoding
 // ---------------------------------------------------------------------------
 
+/** Canonical cardinality for edge port vocabulary (single source of truth). */
+export const EDGE_PORT_VOCAB_CARDINALITY = 17 as const;
+
 /** Flat list of every unique port name across all component types */
 export const ALL_PORT_NAMES: readonly string[] = (() => {
   const names = new Set<string>();
@@ -252,6 +255,13 @@ export const PORT_NAME_TO_INDEX: ReadonlyMap<string, number> = new Map(
 
 /** Total number of distinct port names (dimension of one-hot port encoding) */
 export const PORT_VOCAB_SIZE = ALL_PORT_NAMES.length;
+
+if (PORT_VOCAB_SIZE !== EDGE_PORT_VOCAB_CARDINALITY) {
+  throw new Error(
+    `Port vocabulary cardinality mismatch: expected ${EDGE_PORT_VOCAB_CARDINALITY}, got ${PORT_VOCAB_SIZE}. ` +
+      "Update edge-feature schema constants before changing component ports.",
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Component type indexing (for GNN node features)

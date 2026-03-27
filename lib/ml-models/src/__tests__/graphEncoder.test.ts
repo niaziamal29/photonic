@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { encodeNodeFeatures, encodeGraph, NODE_FEATURE_DIM, EDGE_FEATURE_DIM, encodeEdgeFeatures } from '../graphEncoder.js';
-import { NUM_COMPONENT_TYPES } from '../portSpec.js';
+import { NUM_COMPONENT_TYPES, PORT_VOCAB_SIZE } from '../portSpec.js';
 import { NUM_PARAMS } from '../paramNormalization.js';
 
 describe('encodeNodeFeatures', () => {
@@ -38,6 +38,8 @@ describe('encodeEdgeFeatures', () => {
   it('returns correct dimension', () => {
     const features = encodeEdgeFeatures('out', 'in');
     expect(features).toHaveLength(EDGE_FEATURE_DIM);
+    expect(EDGE_FEATURE_DIM).toBe(PORT_VOCAB_SIZE * 2);
+    expect(EDGE_FEATURE_DIM).toBe(34);
   });
 });
 

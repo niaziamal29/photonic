@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Complete Photonic Process</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{overflow:hidden;background:#03050e;font-family:'Helvetica Neue',-apple-system,Arial,sans-serif;cursor:crosshair}
+    canvas{display:block}
+    .overlay{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10}
+    .title-group{position:absolute;top:4%;left:50%;transform:translateX(-50%);text-align:center;opacity:0}
+    .title-group h1{font-size:clamp(1rem,2.8vw,2.2rem);font-weight:200;letter-spacing:.4em;text-transform:uppercase;color:#e0e7ff;text-shadow:0 0 40px rgba(96,165,250,.3)}
+    .title-group .sub{font-size:clamp(.5rem,1vw,.75rem);letter-spacing:.5em;color:rgba(148,163,184,.5);margin-top:6px;text-transform:uppercase}
+    .stage-label{position:absolute;bottom:7%;left:50%;transform:translateX(-50%);text-align:center;opacity:0;transition:opacity .4s}
+    .stage-label .name{font-size:clamp(.65rem,1.4vw,.95rem);letter-spacing:.4em;text-transform:uppercase;color:rgba(96,165,250,.85)}
+    .stage-label .desc{font-size:clamp(.5rem,.9vw,.7rem);letter-spacing:.12em;color:rgba(148,163,184,.5);margin-top:5px;max-width:550px;line-height:1.5}
+    .phase-track{position:absolute;bottom:3%;left:50%;transform:translateX(-50%);display:flex;gap:8px;opacity:0}
+    .pdot{width:5px;height:5px;border-radius:50%;background:rgba(96,165,250,.15);transition:all .5s ease}
+    .pdot.on{background:rgba(96,165,250,.9);box-shadow:0 0 10px rgba(96,165,250,.5)}
+    .vignette{position:fixed;top:0;left:0;width:100%;height:100%;background:radial-gradient(ellipse at center,transparent 45%,rgba(3,5,14,.8)100%);pointer-events:none;z-index:5}
+    .legend{position:absolute;top:auto;bottom:14%;right:3%;opacity:0;font-size:.55rem;letter-spacing:.08em;color:rgba(148,163,184,.4);line-height:1.8;text-align:right}
+    .legend span{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
+    @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+  </style>
+</head>
+<body>
+  <div class="vignette"></div>
+  <div class="overlay">
+    <div class="title-group">
+      <h1>The Complete Photonic Process</h1>
+      <div class="sub">Every phenomenon of light on silicon</div>
+    </div>
+    <div class="stage-label"><div class="name"></div><div class="desc"></div></div>
+    <div class="phase-track"></div>
+    <div class="legend"></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script>
+  // ═══════════════════════════════════════════════════════════
+  // THE COMPLETE PHOTONIC PROCESS — EVERY PHENOMENON OF LIGHT
+  // ═══════════════════════════════════════════════════════════
+
+  const PI = Math.PI, TAU = PI * 2;
+
+  // ─── SCENE ──────────────────────────────────────────────
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x03050e, 0.012);
+  const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 600);
+  camera.position.set(0, 8, 35);
+  const renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  document.body.appendChild(renderer.domElement);
+  const clock = new THREE.Clock();
+  const mouse = {x:0, y:0};
+
+  // ─── PALETTE ────────────────────────────────────────────
+  const C = {
+    laserRed:     0xff3b3b,
+    photonBlue:   0x60a5fa,
+    cyan:         0x22d3ee,
+    green:        0x34d399,
+    gold:         0xfbbf24,
+    violet:       0xa78bfa,
+    accent:       0x818cf8,
+    magenta:      0xf472b6,
+    white:        0xe0e7ff,
+    substrate:    0x080d1a,
+    waveguide:    0x1e3a5f,
+    cladding:     0x0f2035,
+    detector:     0x34d399,
+    heater:       0xf97316,
+    nonlinear:    0xfbbf24,
+    bragg:        0xc084fc,
+  };
+
+  // ─── HELPERS ────────────────────────────────────────────
+  function particleTex(r,g,b){
+    const c=document.createElement('canvas');c.width=64;c.height=64;
+    const x=c.getContext('2d'),gd=x.createRadialGradient(32,32,0,32,32,32);
+    gd.addColorStop(0,`rgba(${r},${g},${b},1)`);
+    gd.addColorStop(0.25,`rgba(${r},${g},${b},0.7)`);
+    gd.addColorStop(0.6,`rgba(${r},${g},${b},0.15)`);
+    gd.addColorStop(1,'rgba(0,0,0,0)');
+    x.fillStyle=gd;x.fillRect(0,0,64,64);
+    return new THREE.CanvasTexture(c);
+  }
+  const texBlue = particleTex(96,165,250);
+  const texCyan = particleTex(34,211,238);
+  const texGold = particleTex(251,191,36);
+  const texViolet = particleTex(167,139,250);
+  const texGreen = particleTex(52,211,153);
+  const texRed = particleTex(255,59,59);
+  const texWhite = particleTex(224,231,255);
+  const texMagenta = particleTex(244,114,182);
+
+  function makeTube(pts, radius, color, opacity, emissive){
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const geo = new THREE.TubeGeometry(curve, Math.max(64, pts.length*24), radius, 8, false);
+    const mat = new THREE.MeshStandardMaterial({
+      color, roughness:0.3, metalness:0.6, transparent:true, opacity:opacity||0.4,
+      emissive: emissive||color, emissiveIntensity:0.15
+    });
+    const m = new THREE.Mesh(geo, mat);
+    m.castShadow = true;
+    m.userData.curve = curve;
+    return m;
+  }
+  function makeGlowTube(pts, radius, color){
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const geo = new THREE.TubeGeometry(curve, Math.max(64,pts.length*24), radius, 8, false);
+    const mat = new THREE.MeshBasicMaterial({
+      color, transparent:true, opacity:0.6, blending:THREE.AdditiveBlending
+    });
+    const m = new THREE.Mesh(geo, mat);
+    m.userData.curve = curve;
+    m.userData.mat = mat;
+    return m;
+  }
+  function v3(x,y,z){return new THREE.Vector3(x,y,z)}
+
+  // ─── LIGHTING ───────────────────────────────────────────
+  scene.add(new THREE.AmbientLight(0x0a0a2a, 0.25));
+  const keyLight = new THREE.SpotLight(0x60a5fa, 0.6, 80, PI/4.5, 0.5);
+  keyLight.position.set(-12, 18, 15);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(2048,2048);
+  scene.add(keyLight);
+  const rimLight = new THREE.PointLight(0x818cf8, 0.35, 40);
+  rimLight.position.set(15, 6, -10);
+  scene.add(rimLight);
+  const fillLight = new THREE.PointLight(0x22d3ee, 0.2, 30);
+  fillLight.position.set(-8, -3, 12);
+  scene.add(fillLight);
+  const warmFill = new THREE.PointLight(0xfbbf24, 0.15, 25);
+  warmFill.position.set(5, 2, 8);
+  scene.add(warmFill);
+
+  // ─── SUBSTRATE ──────────────────────────────────────────
+  const substrate = new THREE.Mesh(
+    new THREE.BoxGeometry(50, 0.25, 14),
+    new THREE.MeshStandardMaterial({color:C.substrate, roughness:0.5, metalness:0.4, transparent:true, opacity:0.9})
+  );
+  substrate.position.set(2, -2.2, 0);
+  substrate.receiveShadow = true;
+  scene.add(substrate);
+
+  // Subtle grid
+  const grid = new THREE.GridHelper(50, 100, 0x121a30, 0x121a30);
+  grid.position.set(2, -2.06, 0);
+  grid.material.opacity = 0.12;
+  grid.material.transparent = true;
+  scene.add(grid);
+
+  // Silicon layer
+  const siliconLayer = new THREE.Mesh(
+    new THREE.BoxGeometry(50, 0.08, 14),
+    new THREE.MeshStandardMaterial({color:0x0e1a30, roughness:0.3, metalness:0.7, transparent:true, opacity:0.5})
+  );
+  siliconLayer.position.set(2, -2.07, 0);
+  scene.add(siliconLayer);
+
+  // ═══════════════════════════════════════════════════════
+  // CIRCUIT LAYOUT — Left to right:
+  // Laser → Grating Coupler → Waveguide (TIR) → MMI Splitter →
+  //   Top arm: Phase Shifter → MZI recombine
+  //   Bottom arm: straight →
+  // → Ring Resonator → Bragg Grating → Directional Coupler →
+  // → Nonlinear Region (FWM) → AWG Demux → Detectors
+  // ═══════════════════════════════════════════════════════
+
+  const allComponents = new THREE.Group();
+  scene.add(allComponents);
+
+  // ============================================================
+  // 1. LASER SOURCE — Stimulated Emission
+  // ============================================================
+  const laserGroup = new THREE.Group();
+  laserGroup.position.set(-20, 0, 0);
+
+  // Laser cavity body
+  const laserBody = new THREE.Mesh(
+    new THREE.BoxGeometry(2.5, 1.0, 1.0),
+    new THREE.MeshStandardMaterial({color:0x1a1a2e, roughness:0.2, metalness:0.9})
+  );
+  laserBody.castShadow = true;
+  laserGroup.add(laserBody);
+
+  // Active gain medium (glowing core)
+  const gainMedium = new THREE.Mesh(
+    new THREE.BoxGeometry(2.0, 0.4, 0.4),
+    new THREE.MeshStandardMaterial({
+      color:C.laserRed, emissive:C.laserRed, emissiveIntensity:0.6,
+      roughness:0.1, metalness:0.3, transparent:true, opacity:0.8
+    })
+  );
+  laserGroup.add(gainMedium);
+
+  // Mirror facets
+  [-1.26, 1.26].forEach(x => {
+    const mirror = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.8, 0.8),
+      new THREE.MeshStandardMaterial({
+        color:0xcccccc, roughness:0.0, metalness:1.0,
+        side: THREE.DoubleSide
+      })
+    );
+    mirror.position.x = x;
+    mirror.rotation.y = PI/2;
+    laserGroup.add(mirror);
+  });
+
+  // Stimulated emission particles (bouncing inside cavity)
+  const stimCount = 80;
+  const stimGeo = new THREE.BufferGeometry();
+  const stimPos = new Float32Array(stimCount*3);
+  const stimData = [];
+  for(let i=0;i<stimCount;i++){
+    stimData.push({
+      x: (Math.random()-0.5)*2,
+      y: (Math.random()-0.5)*0.3,
+      z: (Math.random()-0.5)*0.3,
+      vx: (Math.random()>0.5?1:-1) * (0.02+Math.random()*0.04),
+      phase: Math.random()*TAU
+    });
+    stimPos[i*3]=-20; stimPos[i*3+1]=0; stimPos[i*3+2]=0;
+  }
+  stimGeo.setAttribute('position',new THREE.BufferAttribute(stimPos,3));
+  const stimMat = new THREE.PointsMaterial({
+    color:C.laserRed, size:0.08, map:texRed,
+    transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true
+  });
+  const stimParticles = new THREE.Points(stimGeo, stimMat);
+  laserGroup.add(stimParticles);
+
+  // Emitted beam (coherent output)
+  const beamGeo = new THREE.CylinderGeometry(0.03, 0.03, 2.5, 8);
+  const beamMat = new THREE.MeshBasicMaterial({
+    color:C.laserRed, transparent:true, opacity:0.7, blending:THREE.AdditiveBlending
+  });
+  const beam = new THREE.Mesh(beamGeo, beamMat);
+  beam.rotation.z = PI/2;
+  beam.position.x = 2.5;
+  laserGroup.add(beam);
+
+  // Beam halo
+  const beamHalo = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.12, 0.12, 2.5, 8),
+    new THREE.MeshBasicMaterial({color:C.laserRed, transparent:true, opacity:0.08, blending:THREE.AdditiveBlending})
+  );
+  beamHalo.rotation.z = PI/2;
+  beamHalo.position.x = 2.5;
+  laserGroup.add(beamHalo);
+
+  allComponents.add(laserGroup);
+
+  // ============================================================
+  // 2. GRATING COUPLER — Diffraction
+  // ============================================================
+  const gratingGroup = new THREE.Group();
+  gratingGroup.position.set(-16.5, 0, 0);
+
+  // Grating teeth
+  for(let i=0;i<12;i++){
+    const tooth = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, 0.15, 0.8),
+      new THREE.MeshStandardMaterial({
+        color:0x2a3a5a, roughness:0.4, metalness:0.7,
+        emissive:C.photonBlue, emissiveIntensity:0.1
+      })
+    );
+    tooth.position.x = i * 0.14 - 0.8;
+    tooth.position.y = -0.15;
+    gratingGroup.add(tooth);
+  }
+
+  // Diffraction pattern (fan of light entering at angle)
+  const diffLines = 8;
+  for(let i=0;i<diffLines;i++){
+    const angle = -PI/4 + (i/(diffLines-1)) * PI/6;
+    const len = 1.5 + Math.random()*0.5;
+    const lineGeo = new THREE.CylinderGeometry(0.01, 0.01, len, 4);
+    const lineMat = new THREE.MeshBasicMaterial({
+      color:C.photonBlue, transparent:true,
+      opacity: 0.3 - Math.abs(i-diffLines/2)*0.04,
+      blending:THREE.AdditiveBlending
+    });
+    const line = new THREE.Mesh(lineGeo, lineMat);
+    line.position.y = Math.sin(angle)*len/2 + 0.5;
+    line.position.x = Math.cos(angle)*len/2 - 0.4;
+    line.rotation.z = angle + PI/2;
+    gratingGroup.add(line);
+  }
+
+  allComponents.add(gratingGroup);
+
+  // ============================================================
+  // 3. INPUT WAVEGUIDE — Total Internal Reflection + Mode Field
+  // ============================================================
+  // Cladding
+  const inputWG_clad = makeTube([
+    v3(-15.5,0,0), v3(-14,0,0), v3(-12,0,0), v3(-10,0,0)
+  ], 0.15, C.cladding, 0.3);
+  allComponents.add(inputWG_clad);
+
+  // Core
+  const inputWG_core = makeGlowTube([
+    v3(-15.5,0,0), v3(-14,0,0), v3(-12,0,0), v3(-10,0,0)
+  ], 0.06, C.photonBlue);
+  allComponents.add(inputWG_core);
+
+  // TIR visualization — zig-zag ray bouncing inside waveguide
+  const tirPoints = [];
+  for(let i=0;i<30;i++){
+    const x = -15.5 + i * 0.18;
+    const y = Math.sin(i * PI) * 0.1;
+    tirPoints.push(v3(x, y, 0.2));
+  }
+  const tirGeo = new THREE.BufferGeometry().setFromPoints(tirPoints);
+  const tirMat = new THREE.LineBasicMaterial({color:C.cyan, transparent:true, opacity:0.0});
+  const tirLine = new THREE.Line(tirGeo, tirMat);
+  allComponents.add(tirLine);
+
+  // Mode field profile — gaussian cross-section visualization
+  const modeGroup = new THREE.Group();
+  modeGroup.position.set(-12.5, 0, 0.5);
+  const modeRings = 5;
+  for(let i=0;i<modeRings;i++){
+    const r = 0.05 + i * 0.06;
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(r-0.01, r, 32),
+      new THREE.MeshBasicMaterial({
+        color:C.photonBlue, transparent:true,
+        opacity: 0.5 - i*0.1,
+        blending:THREE.AdditiveBlending, side:THREE.DoubleSide
+      })
+    );
+    ring.rotation.y = PI/2;
+    modeGroup.add(ring);
+  }
+  modeGroup.visible = false;
+  allComponents.add(modeGroup);
+
+  // ============================================================
+  // 4. MMI BEAM SPLITTER — Multimode Interference
+  // ============================================================
+  const mmiGroup = new THREE.Group();
+  mmiGroup.position.set(-9.5, 0, 0);
+
+  // MMI body
+  const mmiBody = new THREE.Mesh(
+    new THREE.BoxGeometry(2.2, 0.7, 0.7),
+    new THREE.MeshStandardMaterial({
+      color:C.waveguide, roughness:0.3, metalness:0.6,
+      transparent:true, opacity:0.5
+    })
+  );
+  mmiBody.castShadow = true;
+  mmiGroup.add(mmiBody);
+
+  // Self-imaging pattern (interference fringes inside MMI)
+  const mmiPatternCount = 200;
+  const mmiPatGeo = new THREE.BufferGeometry();
+  const mmiPatPos = new Float32Array(mmiPatternCount*3);
+  for(let i=0;i<mmiPatternCount;i++){
+    const x = (Math.random()-0.5)*2;
+    const y = (Math.random()-0.5)*0.5;
+    const z = (Math.random()-0.5)*0.5;
+    mmiPatPos[i*3]=x; mmiPatPos[i*3+1]=y; mmiPatPos[i*3+2]=z;
+  }
+  mmiPatGeo.setAttribute('position',new THREE.BufferAttribute(mmiPatPos,3));
+  const mmiPatMat = new THREE.PointsMaterial({
+    color:C.cyan, size:0.04, map:texCyan,
+    transparent:true, opacity:0.0, blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const mmiPattern = new THREE.Points(mmiPatGeo, mmiPatMat);
+  mmiGroup.add(mmiPattern);
+
+  allComponents.add(mmiGroup);
+
+  // Output arms from MMI
+  const mmiTopArm = makeGlowTube([
+    v3(-8.4, 0.15, 0), v3(-7.5, 0.5, 0), v3(-6.5, 1.2, 0), v3(-5.5, 1.5, 0)
+  ], 0.06, C.photonBlue);
+  allComponents.add(mmiTopArm);
+  allComponents.add(makeTube([
+    v3(-8.4, 0.15, 0), v3(-7.5, 0.5, 0), v3(-6.5, 1.2, 0), v3(-5.5, 1.5, 0)
+  ], 0.14, C.cladding, 0.25));
+
+  const mmiBottomArm = makeGlowTube([
+    v3(-8.4, -0.15, 0), v3(-7.5, -0.5, 0), v3(-6.5, -1.2, 0), v3(-5.5, -1.5, 0)
+  ], 0.06, C.photonBlue);
+  allComponents.add(mmiBottomArm);
+  allComponents.add(makeTube([
+    v3(-8.4, -0.15, 0), v3(-7.5, -0.5, 0), v3(-6.5, -1.2, 0), v3(-5.5, -1.5, 0)
+  ], 0.14, C.cladding, 0.25));
+
+  // ============================================================
+  // 5. THERMO-OPTIC PHASE SHIFTER (top arm)
+  // ============================================================
+  const phaseGroup = new THREE.Group();
+  phaseGroup.position.set(-4, 1.5, 0);
+
+  // Heater element
+  const heater = new THREE.Mesh(
+    new THREE.BoxGeometry(2, 0.12, 0.3),
+    new THREE.MeshStandardMaterial({
+      color:C.heater, emissive:C.heater, emissiveIntensity:0.4,
+      roughness:0.4, metalness:0.7, transparent:true, opacity:0.8
+    })
+  );
+  heater.position.y = 0.25;
+  phaseGroup.add(heater);
+
+  // Heat haze particles
+  const hazeCount = 100;
+  const hazeGeo = new THREE.BufferGeometry();
+  const hazePos = new Float32Array(hazeCount*3);
+  const hazeVel = [];
+  for(let i=0;i<hazeCount;i++){
+    hazePos[i*3] = (Math.random()-0.5)*2;
+    hazePos[i*3+1] = Math.random()*0.5 + 0.3;
+    hazePos[i*3+2] = (Math.random()-0.5)*0.3;
+    hazeVel.push(0.003+Math.random()*0.008);
+  }
+  hazeGeo.setAttribute('position',new THREE.BufferAttribute(hazePos,3));
+  const hazeMat = new THREE.PointsMaterial({
+    color:C.heater, size:0.06, map:texGold,
+    transparent:true, opacity:0.0, blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const hazeParticles = new THREE.Points(hazeGeo, hazeMat);
+  phaseGroup.add(hazeParticles);
+
+  // Waveguide through phase shifter
+  const phaseWG = makeGlowTube([
+    v3(-5.5, 1.5, 0), v3(-5, 1.5, 0), v3(-3, 1.5, 0), v3(-2.5, 1.5, 0)
+  ], 0.06, C.photonBlue);
+  allComponents.add(phaseWG);
+  allComponents.add(makeTube([
+    v3(-5.5, 1.5, 0), v3(-5, 1.5, 0), v3(-3, 1.5, 0), v3(-2.5, 1.5, 0)
+  ], 0.14, C.cladding, 0.25));
+
+  allComponents.add(phaseGroup);
+
+  // Bottom arm (straight, no phase shift)
+  allComponents.add(makeGlowTube([
+    v3(-5.5,-1.5,0), v3(-4,-1.5,0), v3(-2.5,-1.5,0)
+  ], 0.06, C.photonBlue));
+  allComponents.add(makeTube([
+    v3(-5.5,-1.5,0), v3(-4,-1.5,0), v3(-2.5,-1.5,0)
+  ], 0.14, C.cladding, 0.25));
+
+  // Phase shift visualization (wave with shifted phase)
+  const phaseWaveCount = 100;
+  const phaseWaveGeo = new THREE.BufferGeometry();
+  const phaseWavePos = new Float32Array(phaseWaveCount*3);
+  phaseWaveGeo.setAttribute('position', new THREE.BufferAttribute(phaseWavePos,3));
+  const phaseWaveMat = new THREE.PointsMaterial({
+    color:C.heater, size:0.035, map:texGold,
+    transparent:true, opacity:0.0, blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const phaseWave = new THREE.Points(phaseWaveGeo, phaseWaveMat);
+  allComponents.add(phaseWave);
+
+  // ============================================================
+  // 6. MZI RECOMBINATION — Constructive/Destructive Interference
+  // ============================================================
+  // Top arm converge
+  allComponents.add(makeGlowTube([
+    v3(-2.5, 1.5, 0), v3(-1.5, 1.0, 0), v3(-0.5, 0.3, 0), v3(0, 0, 0)
+  ], 0.06, C.cyan));
+  allComponents.add(makeTube([
+    v3(-2.5, 1.5, 0), v3(-1.5, 1.0, 0), v3(-0.5, 0.3, 0), v3(0, 0, 0)
+  ], 0.14, C.cladding, 0.25));
+
+  // Bottom arm converge
+  allComponents.add(makeGlowTube([
+    v3(-2.5, -1.5, 0), v3(-1.5, -1.0, 0), v3(-0.5, -0.3, 0), v3(0, 0, 0)
+  ], 0.06, C.cyan));
+  allComponents.add(makeTube([
+    v3(-2.5, -1.5, 0), v3(-1.5, -1.0, 0), v3(-0.5, -0.3, 0), v3(0, 0, 0)
+  ], 0.14, C.cladding, 0.25));
+
+  // Interference visualization at junction
+  const interferenceGlow = new THREE.Mesh(
+    new THREE.SphereGeometry(0.3, 16, 16),
+    new THREE.MeshBasicMaterial({color:C.cyan, transparent:true, opacity:0.0, blending:THREE.AdditiveBlending})
+  );
+  interferenceGlow.position.set(0, 0, 0);
+  allComponents.add(interferenceGlow);
+
+  // Interference fringe rings
+  const fringeGroup = new THREE.Group();
+  fringeGroup.position.set(0, 0, 0);
+  for(let i=0;i<4;i++){
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.2+i*0.15, 0.01, 8, 32),
+      new THREE.MeshBasicMaterial({
+        color:C.cyan, transparent:true, opacity:0.0,
+        blending:THREE.AdditiveBlending
+      })
+    );
+    ring.rotation.y = PI/2;
+    ring.userData.baseOpacity = 0.3 - i*0.07;
+    fringeGroup.add(ring);
+  }
+  allComponents.add(fringeGroup);
+
+  // Output from MZI
+  allComponents.add(makeGlowTube([v3(0,0,0), v3(1,0,0), v3(2,0,0)], 0.06, C.cyan));
+  allComponents.add(makeTube([v3(0,0,0), v3(1,0,0), v3(2,0,0)], 0.14, C.cladding, 0.25));
+
+  // ============================================================
+  // 7. RING RESONATOR — Whispering Gallery Modes
+  // ============================================================
+  const ringGroup = new THREE.Group();
+  ringGroup.position.set(3.5, 0, 0);
+
+  // Bus waveguide
+  allComponents.add(makeGlowTube([v3(2,0,0), v3(3,0,0), v3(4,-0.3,0), v3(5,-0.3,0)], 0.06, C.cyan));
+  allComponents.add(makeTube([v3(2,0,0), v3(3,0,0), v3(4,-0.3,0), v3(5,-0.3,0)], 0.14, C.cladding, 0.25));
+
+  // Ring
+  const ringRadius = 0.7;
+  const ringTorus = new THREE.Mesh(
+    new THREE.TorusGeometry(ringRadius, 0.07, 16, 64),
+    new THREE.MeshStandardMaterial({
+      color:C.accent, emissive:C.accent, emissiveIntensity:0.3,
+      roughness:0.2, metalness:0.7, transparent:true, opacity:0.7
+    })
+  );
+  ringTorus.rotation.x = PI/2;
+  ringTorus.position.set(0, 0.9, 0);
+  ringGroup.add(ringTorus);
+
+  // Cladding ring
+  const ringClad = new THREE.Mesh(
+    new THREE.TorusGeometry(ringRadius, 0.14, 16, 64),
+    new THREE.MeshStandardMaterial({color:C.cladding, roughness:0.4, metalness:0.5, transparent:true, opacity:0.25})
+  );
+  ringClad.rotation.x = PI/2;
+  ringClad.position.set(0, 0.9, 0);
+  ringGroup.add(ringClad);
+
+  // Circulating photons inside ring
+  const ringPhotonCount = 40;
+  const ringPhotonGeo = new THREE.BufferGeometry();
+  const ringPhotonPos = new Float32Array(ringPhotonCount*3);
+  ringPhotonGeo.setAttribute('position', new THREE.BufferAttribute(ringPhotonPos,3));
+  const ringPhotonMat = new THREE.PointsMaterial({
+    color:C.accent, size:0.1, map:texViolet,
+    transparent:true, opacity:0.0, blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const ringPhotons = new THREE.Points(ringPhotonGeo, ringPhotonMat);
+  ringGroup.add(ringPhotons);
+
+  // Resonance standing wave visualization
+  const resWaveCount = 60;
+  const resWaveGeo = new THREE.BufferGeometry();
+  const resWavePos = new Float32Array(resWaveCount*3);
+  resWaveGeo.setAttribute('position', new THREE.BufferAttribute(resWavePos,3));
+  const resWaveMat = new THREE.PointsMaterial({
+    color:C.violet, size:0.05, map:texViolet,
+    transparent:true, opacity:0.0, blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const resWave = new THREE.Points(resWaveGeo, resWaveMat);
+  ringGroup.add(resWave);
+
+  // Drop port
+  allComponents.add(makeGlowTube([v3(3.5,1.8,0), v3(4.2,2.2,0), v3(5,2.3,0)], 0.05, C.violet));
+  allComponents.add(makeTube([v3(3.5,1.8,0), v3(4.2,2.2,0), v3(5,2.3,0)], 0.12, C.cladding, 0.2));
+
+  allComponents.add(ringGroup);
+
+  // ============================================================
+  // 8. BRAGG GRATING — Reflection + Wavelength Filtering
+  // ============================================================
+  const braggGroup = new THREE.Group();
+  braggGroup.position.set(6.5, -0.3, 0);
+
+  // Periodic structure
+  const braggPeriods = 20;
+  for(let i=0;i<braggPeriods;i++){
+    const bar = new THREE.Mesh(
+      new THREE.BoxGeometry(0.04, 0.2, 0.25),
+      new THREE.MeshStandardMaterial({
+        color: i%2===0 ? 0x2a3a6a : 0x1a2a4a,
+        emissive: C.bragg, emissiveIntensity: i%2===0 ? 0.15 : 0.05,
+        roughness:0.3, metalness:0.6, transparent:true, opacity:0.7
+      })
+    );
+    bar.position.x = i * 0.1 - 1;
+    braggGroup.add(bar);
+  }
+
+  // Reflected wave particles
+  const reflCount = 50;
+  const reflGeo = new THREE.BufferGeometry();
+  const reflPos = new Float32Array(reflCount*3);
+  reflGeo.setAttribute('position', new THREE.BufferAttribute(reflPos,3));
+  const reflMat = new THREE.PointsMaterial({
+    color:C.bragg, size:0.06, map:texViolet,
+    transparent:true, opacity:0.0, blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const reflParticles = new THREE.Points(reflGeo, reflMat);
+  braggGroup.add(reflParticles);
+
+  // Transmitted wave continues
+  allComponents.add(makeGlowTube([v3(5,-0.3,0), v3(6,-0.3,0), v3(7.5,-0.3,0), v3(8.5,-0.3,0)], 0.06, C.cyan));
+  allComponents.add(makeTube([v3(5,-0.3,0), v3(6,-0.3,0), v3(7.5,-0.3,0), v3(8.5,-0.3,0)], 0.14, C.cladding, 0.25));
+
+  allComponents.add(braggGroup);
+
+  // ============================================================
+  // 9. DIRECTIONAL COUPLER — Evanescent Field Coupling
+  // ============================================================
+  // Two waveguides approaching each other
+  const dcTop = makeGlowTube([
+    v3(8.5,-0.3,0), v3(9.5,-0.3,0), v3(10.5,0.15,0), v3(11.5,0.15,0), v3(12.5,0.15,0), v3(13.5,0.8,0)
+  ], 0.06, C.cyan);
+  allComponents.add(dcTop);
+  allComponents.add(makeTube([
+    v3(8.5,-0.3,0), v3(9.5,-0.3,0), v3(10.5,0.15,0), v3(11.5,0.15,0), v3(12.5,0.15,0), v3(13.5,0.8,0)
+  ], 0.14, C.cladding, 0.25));
+
+  // Second waveguide (from ring drop port)
+  const dcBottom = makeGlowTube([
+    v3(5, 2.3, 0), v3(7, 1.5, 0), v3(9, 0, 0), v3(10.5, -0.15, 0),
+    v3(11.5, -0.15, 0), v3(12.5, -0.15, 0), v3(13.5, -0.8, 0)
+  ], 0.05, C.violet);
+  allComponents.add(dcBottom);
+  allComponents.add(makeTube([
+    v3(5, 2.3, 0), v3(7, 1.5, 0), v3(9, 0, 0), v3(10.5, -0.15, 0),
+    v3(11.5, -0.15, 0), v3(12.5, -0.15, 0), v3(13.5, -0.8, 0)
+  ], 0.12, C.cladding, 0.2));
+
+  // Evanescent field visualization between coupled region
+  const evanCount = 300;
+  const evanGeo = new THREE.BufferGeometry();
+  const evanPos = new Float32Array(evanCount*3);
+  evanGeo.setAttribute('position', new THREE.BufferAttribute(evanPos,3));
+  const evanMat = new THREE.PointsMaterial({
+    color:C.accent, size:0.04, map:texViolet,
+    transparent:true, opacity:0.0, blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const evanParticles = new THREE.Points(evanGeo, evanMat);
+  allComponents.add(evanParticles);
+
+  // ============================================================
+  // 10. ELECTRO-OPTIC MODULATOR
+  // ============================================================
+  const modGroup = new THREE.Group();
+  modGroup.position.set(13.5, 0.8, 0);
+
+  // Modulator body (PN junction)
+  const modBody = new THREE.Mesh(
+    new THREE.BoxGeometry(1.2, 0.4, 0.5),
+    new THREE.MeshStandardMaterial({color:0x1a2a40, roughness:0.3, metalness:0.7, transparent:true, opacity:0.6})
+  );
+  modGroup.add(modBody);
+
+  // P and N doped regions
+  const pRegion = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.35, 0.45),
+    new THREE.MeshStandardMaterial({color:0x4a1a2a, emissive:0xff3366, emissiveIntensity:0.15, transparent:true, opacity:0.5})
+  );
+  pRegion.position.x = -0.2;
+  modGroup.add(pRegion);
+
+  const nRegion = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.35, 0.45),
+    new THREE.MeshStandardMaterial({color:0x1a2a4a, emissive:0x3366ff, emissiveIntensity:0.15, transparent:true, opacity:0.5})
+  );
+  nRegion.position.x = 0.2;
+  modGroup.add(nRegion);
+
+  // Electrodes
+  [-.35, .35].forEach(x => {
+    const electrode = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.6, 0.15),
+      new THREE.MeshStandardMaterial({color:0xcccccc, roughness:0.1, metalness:0.95})
+    );
+    electrode.position.set(x, 0.3, 0);
+    modGroup.add(electrode);
+  });
+
+  // RF signal visualization
+  const rfCount = 40;
+  const rfGeo = new THREE.BufferGeometry();
+  const rfPos = new Float32Array(rfCount*3);
+  rfGeo.setAttribute('position', new THREE.BufferAttribute(rfPos,3));
+  const rfMat = new THREE.PointsMaterial({
+    color:C.magenta, size:0.05, map:texMagenta,
+    transparent:true, opacity:0.0, blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const rfSignal = new THREE.Points(rfGeo, rfMat);
+  modGroup.add(rfSignal);
+
+  allComponents.add(modGroup);
+
+  // Waveguide through modulator
+  allComponents.add(makeGlowTube([v3(13.5,0.8,0), v3(14.5,0.8,0), v3(15.5,0.5,0)], 0.06, C.cyan));
+  allComponents.add(makeTube([v3(13.5,0.8,0), v3(14.5,0.8,0), v3(15.5,0.5,0)], 0.14, C.cladding, 0.25));
+
+  // ============================================================
+  // 11. NONLINEAR REGION — Four-Wave Mixing
+  // ============================================================
+  const nlGroup = new THREE.Group();
+  nlGroup.position.set(16.5, 0.2, 0);
+
+  // High-confinement waveguide section
+  const nlBody = new THREE.Mesh(
+    new THREE.BoxGeometry(2.0, 0.3, 0.3),
+    new THREE.MeshStandardMaterial({
+      color:0x2a1a10, emissive:C.nonlinear, emissiveIntensity:0.2,
+      roughness:0.2, metalness:0.5, transparent:true, opacity:0.6
+    })
+  );
+  nlGroup.add(nlBody);
+
+  // FWM generated photon pairs (signal + idler)
+  const fwmCount = 120;
+  const fwmGeo = new THREE.BufferGeometry();
+  const fwmPos = new Float32Array(fwmCount*3);
+  const fwmColors = new Float32Array(fwmCount*3);
+  for(let i=0;i<fwmCount;i++){
+    fwmPos[i*3]=(Math.random()-0.5)*1.8;
+    fwmPos[i*3+1]=(Math.random()-0.5)*0.4;
+    fwmPos[i*3+2]=(Math.random()-0.5)*0.4;
+    // Alternate signal (red) and idler (blue) photons
+    if(i%2===0){fwmColors[i*3]=1;fwmColors[i*3+1]=0.3;fwmColors[i*3+2]=0.3;}
+    else{fwmColors[i*3]=0.3;fwmColors[i*3+1]=0.5;fwmColors[i*3+2]=1;}
+  }
+  fwmGeo.setAttribute('position',new THREE.BufferAttribute(fwmPos,3));
+  fwmGeo.setAttribute('color',new THREE.BufferAttribute(fwmColors,3));
+  const fwmMat = new THREE.PointsMaterial({
+    size:0.06, vertexColors:true, map:texWhite,
+    transparent:true, opacity:0.0, blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const fwmParticles = new THREE.Points(fwmGeo, fwmMat);
+  nlGroup.add(fwmParticles);
+
+  allComponents.add(nlGroup);
+
+  // Connect through
+  allComponents.add(makeGlowTube([v3(15.5,0.5,0), v3(16,0.3,0), v3(17,0.2,0), v3(17.5,0.2,0)], 0.06, C.gold));
+  allComponents.add(makeTube([v3(15.5,0.5,0), v3(16,0.3,0), v3(17,0.2,0), v3(17.5,0.2,0)], 0.14, C.cladding, 0.25));
+
+  // ============================================================
+  // 12. SOA — Semiconductor Optical Amplifier
+  // ============================================================
+  const soaGroup = new THREE.Group();
+  soaGroup.position.set(13.5, -0.8, 0);
+
+  const soaBody = new THREE.Mesh(
+    new THREE.BoxGeometry(1.5, 0.35, 0.4),
+    new THREE.MeshStandardMaterial({
+      color:0x1a2a1a, emissive:C.green, emissiveIntensity:0.2,
+      roughness:0.3, metalness:0.6, transparent:true, opacity:0.6
+    })
+  );
+  soaGroup.add(soaBody);
+
+  // Amplified spontaneous emission particles
+  const aseCount = 60;
+  const aseGeo = new THREE.BufferGeometry();
+  const asePos = new Float32Array(aseCount*3);
+  aseGeo.setAttribute('position',new THREE.BufferAttribute(asePos,3));
+  const aseMat = new THREE.PointsMaterial({
+    color:C.green, size:0.07, map:texGreen,
+    transparent:true, opacity:0.0, blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const aseParticles = new THREE.Points(aseGeo, aseMat);
+  soaGroup.add(aseParticles);
+
+  allComponents.add(soaGroup);
+
+  // SOA output waveguide
+  allComponents.add(makeGlowTube([v3(13.5,-0.8,0), v3(15,-0.8,0), v3(16,-0.5,0), v3(17.5,-0.2,0)], 0.05, C.green));
+  allComponents.add(makeTube([v3(13.5,-0.8,0), v3(15,-0.8,0), v3(16,-0.5,0), v3(17.5,-0.2,0)], 0.12, C.cladding, 0.2));
+
+  // ============================================================
+  // 13. AWG — Arrayed Waveguide Grating (Wavelength Demux)
+  // ============================================================
+  const awgGroup = new THREE.Group();
+  awgGroup.position.set(19.5, 0, 0);
+
+  // Star coupler (input)
+  const starIn = new THREE.Mesh(
+    new THREE.SphereGeometry(0.5, 16, 16, 0, PI, 0, PI),
+    new THREE.MeshStandardMaterial({
+      color:C.waveguide, roughness:0.3, metalness:0.5, transparent:true, opacity:0.35,
+      side: THREE.DoubleSide
+    })
+  );
+  starIn.rotation.z = -PI/2;
+  starIn.position.x = -0.8;
+  awgGroup.add(starIn);
+
+  // Array of waveguides (phased array)
+  const awgArms = 7;
+  for(let i=0;i<awgArms;i++){
+    const yOff = (i - (awgArms-1)/2) * 0.3;
+    const extraLen = i * 0.05;
+    const pts = [
+      v3(-0.3, yOff*0.5, 0),
+      v3(0.3, yOff, 0),
+      v3(0.8+extraLen, yOff*1.1, 0),
+      v3(1.3, yOff*0.5, 0),
+    ];
+    const arm = makeGlowTube(pts, 0.025, C.cyan);
+    arm.userData.mat.opacity = 0.35;
+    awgGroup.add(arm);
+  }
+
+  // Star coupler (output)
+  const starOut = new THREE.Mesh(
+    new THREE.SphereGeometry(0.5, 16, 16, 0, PI, 0, PI),
+    new THREE.MeshStandardMaterial({
+      color:C.waveguide, roughness:0.3, metalness:0.5, transparent:true, opacity:0.35,
+      side: THREE.DoubleSide
+    })
+  );
+  starOut.rotation.z = PI/2;
+  starOut.position.x = 1.3;
+  awgGroup.add(starOut);
+
+  // Dispersion visualization — wavelength-separated output ports
+  const dispColors = [C.laserRed, C.gold, C.green, C.cyan, C.violet];
+  const dispTexes = [texRed, texGold, texGreen, texCyan, texViolet];
+  const outputWGs = [];
+  for(let i=0;i<5;i++){
+    const yOff = (i-2)*0.6;
+    const wg = makeGlowTube([
+      v3(19.5+1.8, yOff*0.3, 0),
+      v3(22, yOff*0.6, 0),
+      v3(23, yOff*0.8, 0)
+    ], 0.04, dispColors[i]);
+    allComponents.add(wg);
+    outputWGs.push(wg);
+  }
+
+  allComponents.add(awgGroup);
+
+  // Input to AWG
+  allComponents.add(makeGlowTube([v3(17.5,0.1,0), v3(18.3,0.05,0), v3(18.7,0,0)], 0.06, C.cyan));
+  allComponents.add(makeTube([v3(17.5,0.1,0), v3(18.3,0.05,0), v3(18.7,0,0)], 0.14, C.cladding, 0.25));
+
+  // ============================================================
+  // 14. PHOTODETECTORS — Absorption & Photocurrent Generation
+  // ============================================================
+  const detectors = [];
+  for(let i=0;i<5;i++){
+    const yOff = (i-2)*0.6;
+    const det = new THREE.Group();
+    det.position.set(23.5, yOff*0.8, 0);
+
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(0.6, 0.4, 0.4),
+      new THREE.MeshStandardMaterial({color:0x1a1a2e, roughness:0.2, metalness:0.9})
+    );
+    body.castShadow = true;
+    det.add(body);
+
+    // Active area
+    const active = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.35, 0.35),
+      new THREE.MeshBasicMaterial({color:dispColors[i], transparent:true, opacity:0.2, side:THREE.DoubleSide})
+    );
+    active.position.x = -0.31;
+    active.rotation.y = PI/2;
+    det.add(active);
+
+    // Glow ring
+    const glow = new THREE.Mesh(
+      new THREE.RingGeometry(0.2, 0.35, 16),
+      new THREE.MeshBasicMaterial({
+        color:dispColors[i], transparent:true, opacity:0.0,
+        blending:THREE.AdditiveBlending, side:THREE.DoubleSide
+      })
+    );
+    glow.position.x = -0.32;
+    glow.rotation.y = PI/2;
+    det.add(glow);
+
+    // Electrical output wire
+    const wire = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.015, 0.015, 0.6, 4),
+      new THREE.MeshStandardMaterial({color:0x888888, roughness:0.3, metalness:0.9})
+    );
+    wire.position.set(0.1, 0.4, 0);
+    det.add(wire);
+
+    det.userData.active = active;
+    det.userData.glow = glow;
+    det.userData.color = dispColors[i];
+    detectors.push(det);
+    allComponents.add(det);
+  }
+
+  // ============================================================
+  // 15. SCATTERING PARTICLES — Rayleigh throughout circuit
+  // ============================================================
+  const scatterCount = 600;
+  const scatterGeo = new THREE.BufferGeometry();
+  const scatterPos = new Float32Array(scatterCount*3);
+  const scatterVel = [];
+  for(let i=0;i<scatterCount;i++){
+    scatterPos[i*3] = -20 + Math.random()*45;
+    scatterPos[i*3+1] = (Math.random()-0.5)*4;
+    scatterPos[i*3+2] = (Math.random()-0.5)*3;
+    scatterVel.push({
+      x:(Math.random()-0.5)*0.003,
+      y:(Math.random()-0.5)*0.003,
+      z:(Math.random()-0.5)*0.002
+    });
+  }
+  scatterGeo.setAttribute('position',new THREE.BufferAttribute(scatterPos,3));
+  const scatterMat = new THREE.PointsMaterial({
+    color:C.photonBlue, size:0.03, map:texBlue,
+    transparent:true, opacity:0.15, blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const scatterParticles = new THREE.Points(scatterGeo, scatterMat);
+  scene.add(scatterParticles);
+
+  // ============================================================
+  // 16. AMBIENT PHOTON FIELD — Background atmosphere
+  // ============================================================
+  const dustCount = 3000;
+  const dustGeo = new THREE.BufferGeometry();
+  const dustPos = new Float32Array(dustCount*3);
+  const dustBase = new Float32Array(dustCount*3);
+  for(let i=0;i<dustCount;i++){
+    const i3=i*3;
+    dustPos[i3]=(Math.random()-0.5)*60;
+    dustPos[i3+1]=(Math.random()-0.5)*25;
+    dustPos[i3+2]=(Math.random()-0.5)*25;
+    dustBase[i3]=dustPos[i3]; dustBase[i3+1]=dustPos[i3+1]; dustBase[i3+2]=dustPos[i3+2];
+  }
+  dustGeo.setAttribute('position',new THREE.BufferAttribute(dustPos,3));
+  const dustMat = new THREE.PointsMaterial({
+    color:0x3355aa, size:0.035, map:texBlue,
+    transparent:true, opacity:0.15, blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const dust = new THREE.Points(dustGeo, dustMat);
+  scene.add(dust);
+
+  // ============================================================
+  // 17. POLARIZATION VISUALIZATION
+  // ============================================================
+  const polGroup = new THREE.Group();
+  polGroup.position.set(-12.5, 0, 0);
+  const polArrowCount = 12;
+  const polArrows = [];
+  for(let i=0;i<polArrowCount;i++){
+    const arrow = new THREE.Mesh(
+      new THREE.ConeGeometry(0.04, 0.15, 4),
+      new THREE.MeshBasicMaterial({color:C.gold, transparent:true, opacity:0.0})
+    );
+    arrow.position.x = i * 0.35;
+    arrow.position.y = 0.3;
+    polArrows.push(arrow);
+    polGroup.add(arrow);
+  }
+  allComponents.add(polGroup);
+
+  // ============================================================
+  // 18. DISPERSION VISUALIZATION (chromatic)
+  // ============================================================
+  const dispCount = 150;
+  const dispGeo = new THREE.BufferGeometry();
+  const dispPos = new Float32Array(dispCount*3);
+  const dispCols = new Float32Array(dispCount*3);
+  dispGeo.setAttribute('position', new THREE.BufferAttribute(dispPos,3));
+  dispGeo.setAttribute('color', new THREE.BufferAttribute(dispCols,3));
+  const dispMat = new THREE.PointsMaterial({
+    size:0.05, vertexColors:true, map:texWhite,
+    transparent:true, opacity:0.0, blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const dispParticles = new THREE.Points(dispGeo, dispMat);
+  allComponents.add(dispParticles);
+
+  // ============================================================
+  // MAIN PHOTON STREAM — Particles flowing through circuit
+  // ============================================================
+  const PHOTON_COUNT = 300;
+  const pGeo = new THREE.BufferGeometry();
+  const pPos = new Float32Array(PHOTON_COUNT*3);
+  const pSizes = new Float32Array(PHOTON_COUNT);
+  const pColors = new Float32Array(PHOTON_COUNT*3);
+  const pData = [];
+
+  // Define all curve segments for the main path
+  const mainCurves = [
+    new THREE.CatmullRomCurve3([v3(-20,0,0),v3(-18,0,0),v3(-16.5,0,0)]),            // 0: laser to grating
+    new THREE.CatmullRomCurve3([v3(-15.5,0,0),v3(-14,0,0),v3(-12,0,0),v3(-10,0,0)]),// 1: input WG
+    new THREE.CatmullRomCurve3([v3(-10,0,0),v3(-9.5,0,0),v3(-8.4,0,0)]),            // 2: into MMI
+    new THREE.CatmullRomCurve3([v3(-8.4,0.15,0),v3(-7.5,0.5,0),v3(-6.5,1.2,0),v3(-5.5,1.5,0)]), // 3: MMI top
+    new THREE.CatmullRomCurve3([v3(-8.4,-0.15,0),v3(-7.5,-0.5,0),v3(-6.5,-1.2,0),v3(-5.5,-1.5,0)]), // 4: MMI bot
+    new THREE.CatmullRomCurve3([v3(-5.5,1.5,0),v3(-4,1.5,0),v3(-2.5,1.5,0)]),       // 5: phase shifter
+    new THREE.CatmullRomCurve3([v3(-5.5,-1.5,0),v3(-4,-1.5,0),v3(-2.5,-1.5,0)]),    // 6: bottom straight
+    new THREE.CatmullRomCurve3([v3(-2.5,1.5,0),v3(-1.5,1.0,0),v3(-0.5,0.3,0),v3(0,0,0)]),  // 7: MZI top
+    new THREE.CatmullRomCurve3([v3(-2.5,-1.5,0),v3(-1.5,-1.0,0),v3(-0.5,-0.3,0),v3(0,0,0)]),// 8: MZI bot
+    new THREE.CatmullRomCurve3([v3(0,0,0),v3(1,0,0),v3(2,0,0),v3(3,0,0),v3(4,-0.3,0),v3(5,-0.3,0)]), // 9: to ring+bragg
+    new THREE.CatmullRomCurve3([v3(5,-0.3,0),v3(6,-0.3,0),v3(7.5,-0.3,0),v3(8.5,-0.3,0)]), // 10: bragg through
+    new THREE.CatmullRomCurve3([v3(8.5,-0.3,0),v3(9.5,-0.3,0),v3(10.5,0.15,0),v3(11.5,0.15,0),v3(12.5,0.15,0),v3(13.5,0.8,0)]), // 11: DC top
+    new THREE.CatmullRomCurve3([v3(13.5,0.8,0),v3(14.5,0.8,0),v3(15.5,0.5,0)]),     // 12: modulator
+    new THREE.CatmullRomCurve3([v3(15.5,0.5,0),v3(16,0.3,0),v3(17,0.2,0),v3(17.5,0.1,0),v3(18.3,0.05,0),v3(18.7,0,0)]), // 13: NL+AWG in
+  ];
+
+  // Two main photon routes
+  const routeTop = [0,1,2, 3,5,7, 9,10,11,12,13];
+  const routeBottom = [0,1,2, 4,6,8, 9,10,11,12,13];
+
+  for(let i=0;i<PHOTON_COUNT;i++){
+    const route = i%2===0 ? routeTop : routeBottom;
+    pData.push({
+      route, segIdx:0, t:Math.random(),
+      speed: 0.002+Math.random()*0.003,
+      active:false, delay:i*0.06,
+      size: 0.07+Math.random()*0.08
+    });
+    pPos[i*3]=-30; pPos[i*3+1]=-30; pPos[i*3+2]=-30;
+    pSizes[i] = pData[i].size;
+    pColors[i*3]=0.4; pColors[i*3+1]=0.65; pColors[i*3+2]=1;
+  }
+  pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));
+  pGeo.setAttribute('size',new THREE.BufferAttribute(pSizes,1));
+  pGeo.setAttribute('color',new THREE.BufferAttribute(pColors,3));
+
+  const pMat = new THREE.PointsMaterial({
+    size:0.12, vertexColors:true, map:texWhite,
+    transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true
+  });
+  const photons = new THREE.Points(pGeo, pMat);
+  scene.add(photons);
+
+  // ════════════════════════════════════════════════════════════
+  // STAGES — 12 phases of the photonic process
+  // ════════════════════════════════════════════════════════════
+  const stages = [
+    {name:'Stimulated Emission', desc:'Population inversion in the gain medium generates coherent photons bouncing between mirror facets', cam:{x:-18,y:2,z:6}, look:{x:-19,y:0,z:0}},
+    {name:'Grating Coupler', desc:'Periodic dielectric structure diffracts free-space light into the sub-micron waveguide mode at precise angle', cam:{x:-15,y:2.5,z:7}, look:{x:-16,y:0,z:0}},
+    {name:'Total Internal Reflection', desc:'Light confined by refractive index contrast — photons zig-zag at angles beyond the critical angle', cam:{x:-12,y:2,z:7}, look:{x:-12.5,y:0,z:0}},
+    {name:'Multimode Interference Splitting', desc:'Self-imaging in a wide multimode region splits the input into two equal-power output arms', cam:{x:-8.5,y:3,z:8}, look:{x:-9,y:0,z:0}},
+    {name:'Thermo-Optic Phase Shift', desc:'Resistive heater changes local refractive index — accumulated optical phase difference tunes interference', cam:{x:-4,y:3,z:6}, look:{x:-4,y:1.5,z:0}},
+    {name:'Mach-Zehnder Interference', desc:'Two coherent arms recombine — constructive or destructive interference controls output power', cam:{x:-1,y:2.5,z:7}, look:{x:0,y:0,z:0}},
+    {name:'Ring Resonance', desc:'Whispering gallery modes circulate — only resonant wavelengths build up and drop to the output port', cam:{x:3.5,y:3,z:6}, look:{x:3.5,y:0.5,z:0}},
+    {name:'Bragg Reflection', desc:'Periodic index modulation reflects specific wavelengths while transmitting others — a photonic bandgap filter', cam:{x:6.5,y:2,z:6}, look:{x:6.5,y:-0.3,z:0}},
+    {name:'Evanescent Coupling', desc:'Exponentially decaying fields tunnel energy between adjacent waveguides within the coupling length', cam:{x:11,y:2.5,z:7}, look:{x:11.5,y:0,z:0}},
+    {name:'Electro-Optic Modulation', desc:'Applied voltage shifts the PN junction depletion region, modulating refractive index at GHz speeds', cam:{x:14,y:2.5,z:6}, look:{x:13.5,y:0.8,z:0}},
+    {name:'Four-Wave Mixing', desc:'Third-order nonlinearity generates correlated signal-idler photon pairs — the basis for quantum photonics', cam:{x:17,y:2.5,z:6}, look:{x:16.5,y:0.2,z:0}},
+    {name:'Wavelength Demux & Detection', desc:'Arrayed waveguide grating separates wavelengths — each absorbed by a germanium photodetector generating photocurrent', cam:{x:21,y:3,z:9}, look:{x:21,y:0,z:0}},
+  ];
+
+  // Build phase dots
+  const phaseTrack = document.querySelector('.phase-track');
+  stages.forEach((_,i) => {
+    const d = document.createElement('div');
+    d.className = 'pdot';
+    d.dataset.phase = i;
+    phaseTrack.appendChild(d);
+  });
+
+  let currentStage = -1;
+  let stageStartTime = 0;
+  const STAGE_DURATION = 5.5;
+
+  function setStage(idx){
+    if(idx===currentStage) return;
+    currentStage = idx;
+    stageStartTime = clock.getElapsedTime();
+
+    const s = stages[idx];
+    const nameEl = document.querySelector('.stage-label .name');
+    const descEl = document.querySelector('.stage-label .desc');
+    const label = document.querySelector('.stage-label');
+
+    gsap.to(label,{opacity:0,duration:0.3,ease:'power2.in',onComplete:()=>{
+      nameEl.textContent = s.name;
+      descEl.textContent = s.desc;
+      gsap.to(label,{opacity:1,duration:0.7,ease:'power2.out'});
+    }});
+
+    document.querySelectorAll('.pdot').forEach((d,i)=> d.classList.toggle('on', i<=idx));
+
+    gsap.to(camera.position,{x:s.cam.x, y:s.cam.y, z:s.cam.z, duration:2.2, ease:'power2.inOut'});
+
+    // Stage-specific FX
+    switch(idx){
+      case 0: // Laser
+        gsap.to(gainMedium.material,{emissiveIntensity:1.2,duration:0.5,yoyo:true,repeat:3,ease:'sine.inOut'});
+        break;
+      case 2: // TIR
+        gsap.to(tirMat,{opacity:0.6,duration:1,ease:'power2.out'});
+        modeGroup.visible=true;
+        gsap.fromTo(modeGroup.scale,{x:0,y:0,z:0},{x:1,y:1,z:1,duration:0.8,ease:'elastic.out(1,0.5)'});
+        break;
+      case 3: // MMI
+        gsap.to(mmiPatMat,{opacity:0.5,duration:1,ease:'power2.out'});
+        break;
+      case 4: // Phase
+        gsap.to(hazeMat,{opacity:0.5,duration:1});
+        gsap.to(phaseWaveMat,{opacity:0.5,duration:1});
+        gsap.to(heater.material,{emissiveIntensity:0.8,duration:0.8,yoyo:true,repeat:-1,ease:'sine.inOut'});
+        break;
+      case 5: // MZI
+        gsap.to(interferenceGlow.material,{opacity:0.4,duration:0.8});
+        fringeGroup.children.forEach((r,i)=>{
+          gsap.to(r.material,{opacity:r.userData.baseOpacity,duration:0.5,delay:i*0.1});
+        });
+        break;
+      case 6: // Ring
+        gsap.to(ringPhotonMat,{opacity:0.8,duration:1});
+        gsap.to(resWaveMat,{opacity:0.4,duration:1});
+        gsap.to(ringTorus.material,{emissiveIntensity:0.7,duration:1,yoyo:true,repeat:-1,ease:'sine.inOut'});
+        break;
+      case 7: // Bragg
+        gsap.to(reflMat,{opacity:0.6,duration:1});
+        braggGroup.children.forEach((c,i)=>{
+          if(c.isMesh && c.material.emissive) gsap.to(c.material,{emissiveIntensity:0.4,duration:0.3,delay:i*0.02,yoyo:true,repeat:3});
+        });
+        break;
+      case 8: // Evanescent
+        gsap.to(evanMat,{opacity:0.5,duration:1});
+        break;
+      case 9: // Modulator
+        gsap.to(rfMat,{opacity:0.6,duration:1});
+        gsap.to(pRegion.material,{emissiveIntensity:0.4,duration:0.5,yoyo:true,repeat:-1,ease:'sine.inOut'});
+        gsap.to(nRegion.material,{emissiveIntensity:0.4,duration:0.5,yoyo:true,repeat:-1,ease:'sine.inOut',delay:0.25});
+        break;
+      case 10: // FWM
+        gsap.to(fwmMat,{opacity:0.7,duration:1});
+        gsap.to(aseMat,{opacity:0.5,duration:1});
+        gsap.to(nlBody.material,{emissiveIntensity:0.6,duration:1,yoyo:true,repeat:-1,ease:'sine.inOut'});
+        break;
+      case 11: // Detection
+        detectors.forEach((det,di)=>{
+          gsap.to(det.userData.glow.material,{opacity:0.5,duration:0.4,delay:di*0.2,yoyo:true,repeat:4,ease:'power2.inOut'});
+          gsap.to(det.userData.active.material,{opacity:0.7,duration:0.3,delay:di*0.2,yoyo:true,repeat:4});
+        });
+        gsap.to(dispMat,{opacity:0.5,duration:1});
+        break;
+    }
+  }
+
+  // Legend
+  const legendEl = document.querySelector('.legend');
+  const legendItems = [
+    {color:'#ff3b3b', label:'Laser emission'},
+    {color:'#60a5fa', label:'Guided mode'},
+    {color:'#22d3ee', label:'Interference'},
+    {color:'#818cf8', label:'Resonance / coupling'},
+    {color:'#f97316', label:'Phase modulation'},
+    {color:'#fbbf24', label:'Nonlinear generation'},
+    {color:'#f472b6', label:'RF signal'},
+    {color:'#c084fc', label:'Bragg reflection'},
+    {color:'#34d399', label:'Amplification / detection'},
+  ];
+  legendEl.innerHTML = legendItems.map(l =>
+    `<div><span style="background:${l.color}"></span>${l.label}</div>`
+  ).join('');
+
+  // ════════════════════════════════════════════════════════════
+  // ENTRANCE ANIMATION
+  // ════════════════════════════════════════════════════════════
+  const tl = gsap.timeline({delay:0.4});
+  tl.from(substrate.position,{y:-6,duration:1.5,ease:'power3.out'})
+    .from(allComponents.position,{y:-4,duration:1.5,ease:'elastic.out(1,0.6)'},'-=1')
+    .to('.title-group',{opacity:1,duration:1,ease:'power2.out'},'-=0.8')
+    .to('.phase-track',{opacity:1,duration:0.6},'-=0.5')
+    .to('.legend',{opacity:1,duration:0.8},'-=0.4')
+    .add(()=>{
+      pData.forEach(p=>p.active=true);
+      setStage(0);
+    },'+=0.2');
+
+  // ════════════════════════════════════════════════════════════
+  // ANIMATION LOOP
+  // ════════════════════════════════════════════════════════════
+  function animate(){
+    requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
+
+    // Auto-advance stages
+    if(currentStage>=0 && t-stageStartTime>STAGE_DURATION){
+      const next = (currentStage+1) % stages.length;
+      if(next===0){
+        // Reset FX for loop
+        [tirMat,mmiPatMat,hazeMat,phaseWaveMat,reflMat,evanMat,rfMat,fwmMat,aseMat,dispMat].forEach(m=>gsap.to(m,{opacity:0,duration:0.4}));
+        gsap.to(interferenceGlow.material,{opacity:0,duration:0.4});
+        gsap.to(ringPhotonMat,{opacity:0,duration:0.4});
+        gsap.to(resWaveMat,{opacity:0,duration:0.4});
+        fringeGroup.children.forEach(r=>gsap.to(r.material,{opacity:0,duration:0.3}));
+        modeGroup.visible=false;
+        polArrows.forEach(a=>gsap.to(a.material,{opacity:0,duration:0.3}));
+      }
+      setStage(next);
+    }
+
+    // ── Photon stream ──
+    const pp = photons.geometry.attributes.position.array;
+    const pc = photons.geometry.attributes.color.array;
+    for(let i=0;i<PHOTON_COUNT;i++){
+      const p=pData[i];
+      if(!p.active || t<p.delay*0.04) continue;
+      p.t += p.speed;
+      if(p.t>=1){
+        p.t=0;
+        p.segIdx++;
+        if(p.segIdx>=p.route.length){p.segIdx=0;p.t=0;}
+      }
+      const curveIdx = p.route[p.segIdx];
+      const curve = mainCurves[curveIdx];
+      if(curve){
+        const pt = curve.getPointAt(Math.min(p.t,0.999));
+        pp[i*3]=pt.x; pp[i*3+1]=pt.y; pp[i*3+2]=pt.z;
+        // Color shift based on position
+        const progress = (pt.x+20)/43;
+        if(progress<0.3){pc[i*3]=0.9;pc[i*3+1]=0.3;pc[i*3+2]=0.3;} // red near laser
+        else if(progress<0.55){pc[i*3]=0.4;pc[i*3+1]=0.65;pc[i*3+2]=1;} // blue in waveguides
+        else if(progress<0.7){pc[i*3]=0.5;pc[i*3+1]=0.55;pc[i*3+2]=0.98;} // violet in ring
+        else{pc[i*3]=0.13;pc[i*3+1]=0.83;pc[i*3+2]=0.93;} // cyan at output
+      }
+    }
+    photons.geometry.attributes.position.needsUpdate=true;
+    photons.geometry.attributes.color.needsUpdate=true;
+
+    // ── Stimulated emission (bouncing in laser cavity) ──
+    const sp = stimParticles.geometry.attributes.position.array;
+    for(let i=0;i<stimCount;i++){
+      const d=stimData[i];
+      d.x += d.vx;
+      if(Math.abs(d.x)>0.9) d.vx*=-1; // bounce off mirrors
+      d.y = Math.sin(t*8+d.phase)*0.12;
+      sp[i*3]=d.x; sp[i*3+1]=d.y; sp[i*3+2]=d.z;
+    }
+    stimParticles.geometry.attributes.position.needsUpdate=true;
+
+    // ── Heat haze (rising particles) ──
+    if(hazeMat.opacity>0){
+      const hp = hazeParticles.geometry.attributes.position.array;
+      for(let i=0;i<hazeCount;i++){
+        hp[i*3+1]+=hazeVel[i];
+        hp[i*3]+=Math.sin(t*3+i)*0.001;
+        if(hp[i*3+1]>1.2){hp[i*3+1]=0.3;hp[i*3]=(Math.random()-0.5)*2;}
+      }
+      hazeParticles.geometry.attributes.position.needsUpdate=true;
+    }
+
+    // ── Phase wave visualization ──
+    if(phaseWaveMat.opacity>0){
+      const pw = phaseWave.geometry.attributes.position.array;
+      for(let i=0;i<phaseWaveCount;i++){
+        const x=-5.5+(i/phaseWaveCount)*3;
+        pw[i*3]=x;
+        pw[i*3+1]=1.5+Math.sin(x*6-t*4+PI/3)*0.12; // phase-shifted wave
+        pw[i*3+2]=0.3;
+      }
+      phaseWave.geometry.attributes.position.needsUpdate=true;
+    }
+
+    // ── MMI interference pattern ──
+    if(mmiPatMat.opacity>0){
+      const mp=mmiPattern.geometry.attributes.position.array;
+      for(let i=0;i<mmiPatternCount;i++){
+        const x=(i/mmiPatternCount-0.5)*2;
+        mp[i*3+1]=Math.sin(x*8+t*4)*Math.cos(x*3)*0.25;
+      }
+      mmiPattern.geometry.attributes.position.needsUpdate=true;
+    }
+
+    // ── Interference fringe rotation ──
+    fringeGroup.children.forEach((r,i)=>{
+      r.rotation.x=t*0.3+i*0.2;
+      r.rotation.z=t*0.2;
+    });
+    interferenceGlow.scale.setScalar(1+Math.sin(t*4)*0.2);
+
+    // ── Ring resonator photons ──
+    if(ringPhotonMat.opacity>0){
+      const rp=ringPhotons.geometry.attributes.position.array;
+      for(let i=0;i<ringPhotonCount;i++){
+        const angle=t*2.5+i*(TAU/ringPhotonCount);
+        rp[i*3]=Math.cos(angle)*ringRadius;
+        rp[i*3+1]=0.9;
+        rp[i*3+2]=Math.sin(angle)*ringRadius;
+      }
+      ringPhotons.geometry.attributes.position.needsUpdate=true;
+
+      // Standing wave
+      const rw=resWave.geometry.attributes.position.array;
+      for(let i=0;i<resWaveCount;i++){
+        const angle=i*(TAU/resWaveCount);
+        const modulation=1+Math.sin(angle*8)*0.15; // standing wave nodes
+        rw[i*3]=Math.cos(angle)*ringRadius*modulation;
+        rw[i*3+1]=0.9;
+        rw[i*3+2]=Math.sin(angle)*ringRadius*modulation;
+      }
+      resWave.geometry.attributes.position.needsUpdate=true;
+    }
+
+    // ── Bragg reflected particles ──
+    if(reflMat.opacity>0){
+      const rp=reflParticles.geometry.attributes.position.array;
+      for(let i=0;i<reflCount;i++){
+        const x=-1+Math.sin(t*2+i*0.3)*1.2;
+        rp[i*3]=x;
+        rp[i*3+1]=Math.sin(t*5+i*0.5)*0.15;
+        rp[i*3+2]=Math.cos(t*3+i*0.7)*0.2;
+      }
+      reflParticles.geometry.attributes.position.needsUpdate=true;
+    }
+
+    // ── Evanescent field ──
+    if(evanMat.opacity>0){
+      const ep=evanParticles.geometry.attributes.position.array;
+      for(let i=0;i<evanCount;i++){
+        const x=10.5+Math.random()*2;
+        const decay=Math.exp(-Math.abs(Math.random())*3)*0.3;
+        ep[i*3]=x+(Math.sin(t+i)*0.1);
+        ep[i*3+1]=(Math.random()-0.5>0?1:-1)*decay;
+        ep[i*3+2]=(Math.random()-0.5)*0.3;
+      }
+      evanParticles.geometry.attributes.position.needsUpdate=true;
+    }
+
+    // ── RF modulation signal ──
+    if(rfMat.opacity>0){
+      const rf=rfSignal.geometry.attributes.position.array;
+      for(let i=0;i<rfCount;i++){
+        const x=(i/rfCount-0.5)*1;
+        rf[i*3]=x;
+        rf[i*3+1]=0.4+Math.sin(x*20-t*8)*0.15;
+        rf[i*3+2]=0;
+      }
+      rfSignal.geometry.attributes.position.needsUpdate=true;
+    }
+
+    // ── FWM particles ──
+    if(fwmMat.opacity>0){
+      const fp=fwmParticles.geometry.attributes.position.array;
+      for(let i=0;i<fwmCount;i++){
+        fp[i*3]+=(Math.random()-0.5)*0.01;
+        fp[i*3+1]+=Math.sin(t*5+i)*0.002;
+        if(Math.abs(fp[i*3])>0.9) fp[i*3]*=-0.8;
+      }
+      fwmParticles.geometry.attributes.position.needsUpdate=true;
+    }
+
+    // ── SOA amplified emission ──
+    if(aseMat.opacity>0){
+      const ap=aseParticles.geometry.attributes.position.array;
+      for(let i=0;i<aseCount;i++){
+        ap[i*3]=(Math.random()-0.5)*1.5;
+        ap[i*3+1]=(Math.random()-0.5)*0.3;
+        ap[i*3+2]=(Math.random()-0.5)*0.3;
+      }
+      aseParticles.geometry.attributes.position.needsUpdate=true;
+    }
+
+    // ── Dispersion (AWG) ──
+    if(dispMat.opacity>0){
+      const dp=dispParticles.geometry.attributes.position.array;
+      const dc=dispParticles.geometry.attributes.color.array;
+      for(let i=0;i<dispCount;i++){
+        const wl=i/dispCount; // 0=red, 1=blue
+        const ySpread=(wl-0.5)*3;
+        dp[i*3]=19.5+1.8+Math.random()*3;
+        dp[i*3+1]=ySpread*0.5+Math.sin(t+i)*0.1;
+        dp[i*3+2]=(Math.random()-0.5)*0.3;
+        // Rainbow color mapping
+        if(wl<0.2){dc[i*3]=1;dc[i*3+1]=0.2+wl;dc[i*3+2]=0.2;}
+        else if(wl<0.4){dc[i*3]=1-wl;dc[i*3+1]=0.8;dc[i*3+2]=0.2;}
+        else if(wl<0.6){dc[i*3]=0.1;dc[i*3+1]=0.8;dc[i*3+2]=0.5+wl;}
+        else if(wl<0.8){dc[i*3]=0.3;dc[i*3+1]=0.5;dc[i*3+2]=1;}
+        else{dc[i*3]=0.6;dc[i*3+1]=0.3;dc[i*3+2]=1;}
+      }
+      dispParticles.geometry.attributes.position.needsUpdate=true;
+      dispParticles.geometry.attributes.color.needsUpdate=true;
+    }
+
+    // ── Polarization arrows ──
+    if(currentStage===2){
+      polArrows.forEach((a,i)=>{
+        gsap.to(a.material,{opacity:0.6,duration:0.3,delay:i*0.04});
+        a.rotation.z = Math.sin(t*3+i*0.5)*PI/4;
+        a.position.y = 0.25+Math.sin(t*4+i*0.8)*0.08;
+      });
+    }
+
+    // ── Scattering ──
+    const scp=scatterParticles.geometry.attributes.position.array;
+    for(let i=0;i<scatterCount;i++){
+      scp[i*3]+=scatterVel[i].x;
+      scp[i*3+1]+=scatterVel[i].y;
+      scp[i*3+2]+=scatterVel[i].z;
+      if(Math.abs(scp[i*3])>25){scatterVel[i].x*=-1;}
+      if(Math.abs(scp[i*3+1])>3){scatterVel[i].y*=-1;}
+    }
+    scatterParticles.geometry.attributes.position.needsUpdate=true;
+
+    // ── Ambient dust flow ──
+    const dP=dust.geometry.attributes.position.array;
+    for(let i=0;i<dustCount;i++){
+      const i3=i*3;
+      dP[i3]=dustBase[i3]+Math.sin(dustBase[i3+1]*0.15+t*0.1)*0.6;
+      dP[i3+1]=dustBase[i3+1]+Math.cos(dustBase[i3]*0.1+t*0.08)*0.4;
+    }
+    dust.geometry.attributes.position.needsUpdate=true;
+
+    // ── Beam pulse ──
+    beamMat.opacity = 0.5+Math.sin(t*6)*0.3;
+    beamHalo.scale.setScalar(1+Math.sin(t*4)*0.1);
+
+    // ── Camera sway with mouse ──
+    const s = stages[currentStage] || stages[0];
+    camera.position.x += (mouse.x*1.5 + s.cam.x - camera.position.x)*0.006;
+    camera.position.y += (mouse.y*0.8 + s.cam.y - camera.position.y)*0.006;
+    camera.lookAt(s.look.x, s.look.y, s.look.z);
+
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  // ─── EVENTS ─────────────────────────────────────────────
+  window.addEventListener('mousemove', e=>{
+    mouse.x=(e.clientX/innerWidth)*2-1;
+    mouse.y=-(e.clientY/innerHeight)*2+1;
+  });
+  window.addEventListener('resize',()=>{
+    camera.aspect=innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+  </script>
+</body>
+</html>

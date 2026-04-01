@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm test:*)",
+      "Bash(git commit:*)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)",
+      "Bash(python3 -m py_compile artifacts/training-pipeline/src/data_factory/topology_templates.py)",
+      "Bash(python3 -m py_compile artifacts/training-pipeline/src/data_factory/circuit_generator.py)",
+      "Bash(python3 -m py_compile artifacts/training-pipeline/src/data_factory/augmentation.py)",
+      "Bash(python3 -m py_compile artifacts/training-pipeline/src/evaluation/metrics.py)",
+      "Bash(git push:*)",
+      "Bash(curl -s http://localhost:3000/api/builds)",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s http://localhost:5173/api/builds)"
+    ]
+  }
+}

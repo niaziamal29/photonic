@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photonics Equilibrium — Light Through Circuit</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      overflow: hidden;
+      background: #030712;
+      font-family: 'Inter', -apple-system, sans-serif;
+      color: #e2e8f0;
+    }
+
+    canvas { display: block; }
+
+    /* ── HUD Overlay ── */
+    .hud {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .hud-title {
+      position: absolute;
+      top: 32px; left: 40px;
+    }
+
+    .hud-title h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #f472b6 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hud-title .subtitle {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 4px;
+      font-weight: 400;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Component Labels ── */
+    .component-label {
+      position: absolute;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 500;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.6s ease;
+    }
+
+    .component-label.visible { opacity: 1; }
+
+    .component-label::before {
+      content: '';
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+
+    .component-label.fiber::before { background: #60a5fa; box-shadow: 0 0 8px #60a5fa; }
+    .component-label.waveguide::before { background: #a78bfa; box-shadow: 0 0 8px #a78bfa; }
+    .component-label.ring::before { background: #f472b6; box-shadow: 0 0 8px #f472b6; }
+    .component-label.mzi::before { background: #34d399; box-shadow: 0 0 8px #34d399; }
+    .component-label.detector::before { background: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
+    .component-label.splitter::before { background: #fb923c; box-shadow: 0 0 8px #fb923c; }
+
+    /* ── Legend Panel ── */
+    .legend {
+      position: absolute;
+      bottom: 32px; left: 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+      font-weight: 500;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: color 0.3s;
+    }
+
+    .legend-item:hover { color: #e2e8f0; }
+
+    .legend-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── Info Panel ── */
+    .info-panel {
+      position: absolute;
+      top: 32px; right: 40px;
+      width: 280px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(100, 116, 139, 0.2);
+      border-radius: 12px;
+      padding: 20px;
+      pointer-events: auto;
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: all 0.4s ease;
+    }
+
+    .info-panel.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .info-panel h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #f1f5f9;
+    }
+
+    .info-panel p {
+      font-size: 12px;
+      line-height: 1.6;
+      color: #94a3b8;
+    }
+
+    .info-panel .metric {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(100, 116, 139, 0.15);
+    }
+
+    .info-panel .metric-item {
+      text-align: center;
+    }
+
+    .info-panel .metric-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 16px;
+      font-weight: 600;
+      color: #60a5fa;
+    }
+
+    .info-panel .metric-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    /* ── Controls ── */
+    .controls {
+      position: absolute;
+      bottom: 32px; right: 40px;
+      display: flex;
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .ctrl-btn {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      border: 1px solid rgba(100, 116, 139, 0.25);
+      background: rgba(15, 23, 42, 0.7);
+      backdrop-filter: blur(12px);
+      color: #94a3b8;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+
+    .ctrl-btn:hover {
+      border-color: #60a5fa;
+      color: #60a5fa;
+      background: rgba(96, 165, 250, 0.1);
+    }
+
+    .ctrl-btn.active {
+      border-color: #60a5fa;
+      color: #60a5fa;
+      background: rgba(96, 165, 250, 0.15);
+    }
+
+    /* ── Photon Counter ── */
+    .photon-counter {
+      position: absolute;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #475569;
+      letter-spacing: 1px;
+    }
+
+    .photon-counter span {
+      color: #60a5fa;
+    }
+  </style>
+</head>
+<body>
+
+<div class="hud">
+  <div class="hud-title">
+    <h1>Photonic Circuit Architecture</h1>
+    <div class="subtitle">SILICON PHOTONICS · AI INFERENCE ACCELERATOR · REAL-TIME LIGHT PROPAGATION</div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item" data-component="fiber">
+      <div class="legend-dot" style="background:#60a5fa; box-shadow:0 0 8px #60a5fa"></div>
+      FIBER OPTIC INPUT
+    </div>
+    <div class="legend-item" data-component="waveguide">
+      <div class="legend-dot" style="background:#a78bfa; box-shadow:0 0 8px #a78bfa"></div>
+      SILICON WAVEGUIDE
+    </div>
+    <div class="legend-item" data-component="splitter">
+      <div class="legend-dot" style="background:#fb923c; box-shadow:0 0 8px #fb923c"></div>
+      Y-BRANCH SPLITTER
+    </div>
+    <div class="legend-item" data-component="ring">
+      <div class="legend-dot" style="background:#f472b6; box-shadow:0 0 8px #f472b6"></div>
+      RING RESONATOR
+    </div>
+    <div class="legend-item" data-component="mzi">
+      <div class="legend-dot" style="background:#34d399; box-shadow:0 0 8px #34d399"></div>
+      MACH-ZEHNDER INTERFEROMETER
+    </div>
+    <div class="legend-item" data-component="detector">
+      <div class="legend-dot" style="background:#fbbf24; box-shadow:0 0 8px #fbbf24"></div>
+      PHOTODETECTOR OUTPUT
+    </div>
+  </div>
+
+  <div class="info-panel" id="infoPanel">
+    <h3 id="infoPanelTitle">Fiber Optic Input</h3>
+    <p id="infoPanelDesc">Single-mode fiber couples coherent laser light into the silicon photonic chip via grating couplers. Operating at 1550nm wavelength for minimal loss.</p>
+    <div class="metric">
+      <div class="metric-item">
+        <div class="metric-value" id="metric1Val">1550</div>
+        <div class="metric-label" id="metric1Label">λ (nm)</div>
+      </div>
+      <div class="metric-item">
+        <div class="metric-value" id="metric2Val">0.2</div>
+        <div class="metric-label" id="metric2Label">Loss (dB/km)</div>
+      </div>
+      <div class="metric-item">
+        <div class="metric-value" id="metric3Val">10</div>
+        <div class="metric-label" id="metric3Label">GHz BW</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="ctrl-btn" id="btnPause" title="Pause/Play">▶</button>
+    <button class="ctrl-btn" id="btnSpeed" title="Speed">1×</button>
+    <button class="ctrl-btn" id="btnView" title="View Mode">◎</button>
+  </div>
+
+  <div class="photon-counter">
+    PHOTONS PROPAGATING: <span id="photonCount">0</span> · THROUGHPUT: <span id="throughput">0</span> TOP/s
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════
+// PHOTONIC CIRCUIT VISUALIZATION
+// Reverse-engineered fiber optic → silicon photonic chip
+// ═══════════════════════════════════════════════════════
+
+// ── SCENE SETUP ──
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x030712, 0.018);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 500);
+camera.position.set(0, 18, 28);
+camera.lookAt(0, 0, 2);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.9;
+renderer.outputEncoding = THREE.sRGBEncoding;
+document.body.appendChild(renderer.domElement);
+
+// ── DESIGN TOKENS (matching design system) ──
+const TOKENS = {
+  colors: {
+    fiberBlue:    0x60a5fa,
+    waveguide:    0xa78bfa,
+    ring:         0xf472b6,
+    mzi:          0x34d399,
+    detector:     0xfbbf24,
+    splitter:     0xfb923c,
+    substrate:    0x0f172a,
+    cladding:     0x1e293b,
+    photon:       0x60a5fa,
+    photonCore:   0xffffff,
+    grid:         0x1e293b,
+  },
+  glow: {
+    fiber:     '#60a5fa',
+    waveguide: '#a78bfa',
+    ring:      '#f472b6',
+    mzi:       '#34d399',
+    detector:  '#fbbf24',
+  }
+};
+
+// ── LIGHTING ──
+scene.add(new THREE.AmbientLight(0x111827, 0.3));
+
+const keyLight = new THREE.DirectionalLight(0x93c5fd, 0.6);
+keyLight.position.set(-8, 20, 10);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(2048, 2048);
+keyLight.shadow.camera.near = 0.5;
+keyLight.shadow.camera.far = 60;
+keyLight.shadow.camera.left = -25;
+keyLight.shadow.camera.right = 25;
+keyLight.shadow.camera.top = 25;
+keyLight.shadow.camera.bottom = -25;
+scene.add(keyLight);
+
+const rimLight = new THREE.PointLight(0xa78bfa, 0.5, 50);
+rimLight.position.set(15, 8, -10);
+scene.add(rimLight);
+
+const fillLight = new THREE.PointLight(0x34d399, 0.3, 40);
+fillLight.position.set(-10, 5, 10);
+scene.add(fillLight);
+
+// ── SUBSTRATE (Silicon Chip) ──
+const substrateMat = new THREE.MeshStandardMaterial({
+  color: TOKENS.colors.substrate,
+  roughness: 0.8,
+  metalness: 0.2,
+});
+
+const substrate = new THREE.Mesh(
+  new THREE.BoxGeometry(30, 0.3, 20, 1, 1, 1),
+  substrateMat
+);
+substrate.position.y = -0.15;
+substrate.receiveShadow = true;
+scene.add(substrate);
+
+// Cladding layer
+const claddingMat = new THREE.MeshStandardMaterial({
+  color: TOKENS.colors.cladding,
+  roughness: 0.9,
+  metalness: 0.1,
+  transparent: true,
+  opacity: 0.3,
+});
+const cladding = new THREE.Mesh(
+  new THREE.BoxGeometry(29.5, 0.05, 19.5),
+  claddingMat
+);
+cladding.position.y = 0.025;
+scene.add(cladding);
+
+// Grid lines on substrate
+const gridHelper = new THREE.GridHelper(30, 60, TOKENS.colors.grid, TOKENS.colors.grid);
+gridHelper.position.y = 0.01;
+gridHelper.material.transparent = true;
+gridHelper.material.opacity = 0.15;
+scene.add(gridHelper);
+
+// ── WAVEGUIDE MATERIAL FACTORY ──
+function createWaveguideMat(color, emissiveIntensity = 0.3) {
+  return new THREE.MeshStandardMaterial({
+    color: color,
+    emissive: color,
+    emissiveIntensity: emissiveIntensity,
+    roughness: 0.3,
+    metalness: 0.6,
+    transparent: true,
+    opacity: 0.85,
+  });
+}
+
+// ── CIRCUIT PATH DEFINITIONS ──
+// All paths defined as sequences of [x, z] coordinates on the chip surface
+// Y is always 0.2 (on top of substrate)
+const WAVEGUIDE_Y = 0.2;
+const WAVEGUIDE_RADIUS = 0.08;
+
+function createWaveguideSegment(points, color, radius = WAVEGUIDE_RADIUS) {
+  const mat = createWaveguideMat(color);
+  const curve = new THREE.CatmullRomCurve3(
+    points.map(p => new THREE.Vector3(p[0], WAVEGUIDE_Y, p[1])),
+    false, 'catmullrom', 0.3
+  );
+  const geo = new THREE.TubeGeometry(curve, Math.max(points.length * 12, 64), radius, 8, false);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  scene.add(mesh);
+  return { mesh, curve, color, mat };
+}
+
+// ── FIBER OPTIC INPUT (left side) ──
+const fiberInput = createWaveguideSegment([
+  [-18, 0], [-15, 0], [-13, 0], [-11, 0]
+], TOKENS.colors.fiberBlue, 0.15);
+
+// Fiber jacket (outer cladding)
+const fiberJacketGeo = new THREE.TubeGeometry(
+  new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-18, WAVEGUIDE_Y, 0),
+    new THREE.Vector3(-15, WAVEGUIDE_Y, 0),
+  ], false, 'catmullrom', 0.5),
+  32, 0.35, 12, false
+);
+const fiberJacket = new THREE.Mesh(fiberJacketGeo, new THREE.MeshStandardMaterial({
+  color: 0x1e293b,
+  roughness: 0.5,
+  metalness: 0.3,
+  transparent: true,
+  opacity: 0.6,
+}));
+scene.add(fiberJacket);
+
+// Grating coupler (fiber-to-chip interface)
+const gratingGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.1, 32);
+const gratingMat = new THREE.MeshStandardMaterial({
+  color: TOKENS.colors.fiberBlue,
+  emissive: TOKENS.colors.fiberBlue,
+  emissiveIntensity: 0.5,
+  roughness: 0.2,
+  metalness: 0.8,
+});
+const grating = new THREE.Mesh(gratingGeo, gratingMat);
+grating.position.set(-11, WAVEGUIDE_Y, 0);
+scene.add(grating);
+
+// ── Y-BRANCH SPLITTER ──
+const splitterPos = [-8, 0];
+// Top branch
+const topBranch = createWaveguideSegment([
+  [-11, 0], [-9, 0], [-8, 0.3], [-6, 2], [-4, 3]
+], TOKENS.colors.splitter);
+
+// Bottom branch
+const bottomBranch = createWaveguideSegment([
+  [-11, 0], [-9, 0], [-8, -0.3], [-6, -2], [-4, -3]
+], TOKENS.colors.splitter);
+
+// Splitter junction visual
+const splitterJunction = new THREE.Mesh(
+  new THREE.SphereGeometry(0.2, 16, 16),
+  createWaveguideMat(TOKENS.colors.splitter, 0.6)
+);
+splitterJunction.position.set(-8, WAVEGUIDE_Y, 0);
+scene.add(splitterJunction);
+
+// ── RING RESONATOR (top path) ──
+const ringCenter = [-1, 3];
+const ringRadius = 1.2;
+const ringPoints = [];
+for (let i = 0; i <= 64; i++) {
+  const angle = (i / 64) * Math.PI * 2;
+  ringPoints.push([
+    ringCenter[0] + Math.cos(angle) * ringRadius,
+    ringCenter[1] + Math.sin(angle) * ringRadius
+  ]);
+}
+const ringCurve = new THREE.CatmullRomCurve3(
+  ringPoints.map(p => new THREE.Vector3(p[0], WAVEGUIDE_Y + 0.01, p[1])),
+  true, 'catmullrom', 0.5
+);
+const ringGeo = new THREE.TubeGeometry(ringCurve, 128, WAVEGUIDE_RADIUS, 8, true);
+const ringMesh = new THREE.Mesh(ringGeo, createWaveguideMat(TOKENS.colors.ring, 0.4));
+ringMesh.castShadow = true;
+scene.add(ringMesh);
+
+// Bus waveguide (passes by the ring)
+const ringBusTop = createWaveguideSegment([
+  [-4, 3], [-2.5, 3], [-1, 1.75], [0, 1.75], [1, 1.75], [2.5, 3], [4, 3]
+], TOKENS.colors.waveguide);
+
+// ── MACH-ZEHNDER INTERFEROMETER (bottom path) ──
+// MZI upper arm
+const mziUpperArm = createWaveguideSegment([
+  [-4, -3], [-2.5, -3], [-1.5, -2], [0, -1.5], [1.5, -2], [2.5, -3], [4, -3]
+], TOKENS.colors.mzi);
+
+// MZI lower arm
+const mziLowerArm = createWaveguideSegment([
+  [-4, -3], [-2.5, -3], [-1.5, -4], [0, -4.5], [1.5, -4], [2.5, -3], [4, -3]
+], TOKENS.colors.mzi);
+
+// Phase modulator on upper arm (heater element)
+const heaterGeo = new THREE.BoxGeometry(2, 0.06, 0.3);
+const heaterMat = new THREE.MeshStandardMaterial({
+  color: 0xef4444,
+  emissive: 0xef4444,
+  emissiveIntensity: 0.4,
+  roughness: 0.2,
+  metalness: 0.9,
+});
+const heater = new THREE.Mesh(heaterGeo, heaterMat);
+heater.position.set(0, WAVEGUIDE_Y + 0.08, -1.5);
+scene.add(heater);
+
+// MZI beam splitters (input and output)
+const mziSplitIn = new THREE.Mesh(
+  new THREE.SphereGeometry(0.15, 16, 16),
+  createWaveguideMat(TOKENS.colors.mzi, 0.7)
+);
+mziSplitIn.position.set(-2.5, WAVEGUIDE_Y, -3);
+scene.add(mziSplitIn);
+
+const mziSplitOut = new THREE.Mesh(
+  new THREE.SphereGeometry(0.15, 16, 16),
+  createWaveguideMat(TOKENS.colors.mzi, 0.7)
+);
+mziSplitOut.position.set(2.5, WAVEGUIDE_Y, -3);
+scene.add(mziSplitOut);
+
+// ── OUTPUT WAVEGUIDES (recombine to detectors) ──
+const outputTop = createWaveguideSegment([
+  [4, 3], [6, 3], [8, 2], [10, 1], [11, 1]
+], TOKENS.colors.waveguide);
+
+const outputBottom = createWaveguideSegment([
+  [4, -3], [6, -3], [8, -2], [10, -1], [11, -1]
+], TOKENS.colors.waveguide);
+
+// Cross-connect waveguide
+const crossConnect = createWaveguideSegment([
+  [4, 3], [5.5, 2], [6, 0], [5.5, -2], [4, -3]
+], TOKENS.colors.waveguide);
+
+// ── PHOTODETECTORS ──
+function createDetector(x, z) {
+  const group = new THREE.Group();
+
+  // Detector body
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.8, 0.3, 0.8),
+    new THREE.MeshStandardMaterial({
+      color: TOKENS.colors.detector,
+      emissive: TOKENS.colors.detector,
+      emissiveIntensity: 0.3,
+      roughness: 0.2,
+      metalness: 0.8,
+    })
+  );
+  body.position.y = WAVEGUIDE_Y + 0.15;
+  body.castShadow = true;
+  group.add(body);
+
+  // Active area
+  const active = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.02, 0.5),
+    new THREE.MeshStandardMaterial({
+      color: 0x1a1a2e,
+      emissive: TOKENS.colors.detector,
+      emissiveIntensity: 0.1,
+      roughness: 0.1,
+      metalness: 0.9,
+    })
+  );
+  active.position.y = WAVEGUIDE_Y + 0.31;
+  group.add(active);
+
+  // Bond wire stubs
+  for (let i = -1; i <= 1; i += 2) {
+    const wire = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.02, 0.6, 8),
+      new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.9, roughness: 0.1 })
+    );
+    wire.position.set(i * 0.3, WAVEGUIDE_Y + 0.5, 0);
+    wire.rotation.z = i * 0.3;
+    group.add(wire);
+  }
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+  return group;
+}
+
+const detector1 = createDetector(12, 1);
+const detector2 = createDetector(12, -1);
+
+// ── PHOTON PARTICLE SYSTEM ──
+const PHOTON_COUNT = 800;
+const photonGeo = new THREE.BufferGeometry();
+const photonPositions = new Float32Array(PHOTON_COUNT * 3);
+const photonColors = new Float32Array(PHOTON_COUNT * 3);
+const photonSizes = new Float32Array(PHOTON_COUNT);
+const photonAlphas = new Float32Array(PHOTON_COUNT);
+
+// Photon paths — each photon follows one of these circuit routes
+const circuitPaths = [];
+
+// Path 1: Fiber → Splitter → Ring resonator bus → Top detector
+circuitPaths.push({
+  points: [
+    [-18,0],[-15,0],[-13,0],[-11,0],[-9,0],[-8,0.3],[-6,2],[-4,3],
+    [-2.5,3],[-1,1.75],[0,1.75],[1,1.75],[2.5,3],[4,3],
+    [6,3],[8,2],[10,1],[11,1],[12,1]
+  ],
+  color: new THREE.Color(TOKENS.colors.fiberBlue),
+  weight: 0.25
+});
+
+// Path 2: Fiber → Splitter → MZI upper → Bottom detector
+circuitPaths.push({
+  points: [
+    [-18,0],[-15,0],[-13,0],[-11,0],[-9,0],[-8,-0.3],[-6,-2],[-4,-3],
+    [-2.5,-3],[-1.5,-2],[0,-1.5],[1.5,-2],[2.5,-3],[4,-3],
+    [6,-3],[8,-2],[10,-1],[11,-1],[12,-1]
+  ],
+  color: new THREE.Color(TOKENS.colors.mzi),
+  weight: 0.25
+});
+
+// Path 3: Fiber → Splitter → MZI lower → Bottom detector
+circuitPaths.push({
+  points: [
+    [-18,0],[-15,0],[-13,0],[-11,0],[-9,0],[-8,-0.3],[-6,-2],[-4,-3],
+    [-2.5,-3],[-1.5,-4],[0,-4.5],[1.5,-4],[2.5,-3],[4,-3],
+    [6,-3],[8,-2],[10,-1],[11,-1],[12,-1]
+  ],
+  color: new THREE.Color(TOKENS.colors.mzi),
+  weight: 0.25
+});
+
+// Path 4: Cross-connect path
+circuitPaths.push({
+  points: [
+    [-18,0],[-15,0],[-13,0],[-11,0],[-9,0],[-8,0.3],[-6,2],[-4,3],
+    [4,3],[5.5,2],[6,0],[5.5,-2],[4,-3],
+    [6,-3],[8,-2],[10,-1],[11,-1],[12,-1]
+  ],
+  color: new THREE.Color(TOKENS.colors.waveguide),
+  weight: 0.25
+});
+
+// Build curves for each path
+const pathCurves = circuitPaths.map(p => {
+  return new THREE.CatmullRomCurve3(
+    p.points.map(pt => new THREE.Vector3(pt[0], WAVEGUIDE_Y + 0.05, pt[1])),
+    false, 'catmullrom', 0.3
+  );
+});
+
+// Initialize photons
+const photonData = [];
+for (let i = 0; i < PHOTON_COUNT; i++) {
+  const pathIdx = weightedRandom(circuitPaths.map(p => p.weight));
+  const t = Math.random();
+  const point = pathCurves[pathIdx].getPoint(t);
+
+  photonPositions[i * 3] = point.x;
+  photonPositions[i * 3 + 1] = point.y;
+  photonPositions[i * 3 + 2] = point.z;
+
+  const col = circuitPaths[pathIdx].color;
+  photonColors[i * 3] = col.r;
+  photonColors[i * 3 + 1] = col.g;
+  photonColors[i * 3 + 2] = col.b;
+
+  photonSizes[i] = 0.8 + Math.random() * 1.2;
+  photonAlphas[i] = 0.5 + Math.random() * 0.5;
+
+  photonData.push({
+    pathIdx,
+    t,
+    speed: 0.001 + Math.random() * 0.003,
+    baseSize: photonSizes[i],
+    phase: Math.random() * Math.PI * 2,
+  });
+}
+
+function weightedRandom(weights) {
+  const total = weights.reduce((s, w) => s + w, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < weights.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return i;
+  }
+  return weights.length - 1;
+}
+
+photonGeo.setAttribute('position', new THREE.BufferAttribute(photonPositions, 3));
+photonGeo.setAttribute('color', new THREE.BufferAttribute(photonColors, 3));
+
+// Create photon texture
+function createPhotonTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gradient.addColorStop(0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.15, 'rgba(200,220,255,0.9)');
+  gradient.addColorStop(0.4, 'rgba(96,165,250,0.4)');
+  gradient.addColorStop(1, 'rgba(96,165,250,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(canvas);
+}
+
+const photonMat = new THREE.PointsMaterial({
+  size: 0.25,
+  map: createPhotonTexture(),
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.9,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  sizeAttenuation: true,
+});
+
+const photonPoints = new THREE.Points(photonGeo, photonMat);
+scene.add(photonPoints);
+
+// ── AMBIENT PARTICLES (dust/atmosphere) ──
+const dustCount = 3000;
+const dustGeo = new THREE.BufferGeometry();
+const dustPos = new Float32Array(dustCount * 3);
+for (let i = 0; i < dustCount; i++) {
+  dustPos[i * 3] = (Math.random() - 0.5) * 50;
+  dustPos[i * 3 + 1] = Math.random() * 15;
+  dustPos[i * 3 + 2] = (Math.random() - 0.5) * 30;
+}
+dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+
+const dustMat = new THREE.PointsMaterial({
+  size: 0.03,
+  color: 0x475569,
+  transparent: true,
+  opacity: 0.3,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+});
+const dust = new THREE.Points(dustGeo, dustMat);
+scene.add(dust);
+
+// ── GLOW PLANES (under key components) ──
+function createGlowPlane(x, z, color, size = 2) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128; canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  const c = new THREE.Color(color);
+  const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gradient.addColorStop(0, `rgba(${c.r*255|0},${c.g*255|0},${c.b*255|0},0.3)`);
+  gradient.addColorStop(0.5, `rgba(${c.r*255|0},${c.g*255|0},${c.b*255|0},0.1)`);
+  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 128, 128);
+
+  const mat = new THREE.MeshBasicMaterial({
+    map: new THREE.CanvasTexture(canvas),
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+  plane.rotation.x = -Math.PI / 2;
+  plane.position.set(x, 0.02, z);
+  scene.add(plane);
+  return plane;
+}
+
+createGlowPlane(-11, 0, TOKENS.colors.fiberBlue, 2);
+createGlowPlane(-8, 0, TOKENS.colors.splitter, 1.5);
+createGlowPlane(-1, 3, TOKENS.colors.ring, 3.5);
+createGlowPlane(0, -3, TOKENS.colors.mzi, 4);
+createGlowPlane(12, 1, TOKENS.colors.detector, 2);
+createGlowPlane(12, -1, TOKENS.colors.detector, 2);
+
+// ── RING RESONATOR GLOW PULSE ──
+const ringGlow = createGlowPlane(-1, 3, TOKENS.colors.ring, 4);
+gsap.to(ringGlow.material, {
+  opacity: 0.6, duration: 1.5, ease: 'sine.inOut',
+  yoyo: true, repeat: -1,
+});
+
+// ── MOUSE INTERACTION ──
+const mouse = { x: 0, y: 0 };
+const targetCamPos = { x: 0, y: 18, z: 28 };
+
+window.addEventListener('mousemove', (e) => {
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+});
+
+// ── COMPONENT INFO DATA ──
+const componentInfo = {
+  fiber: {
+    title: 'Fiber Optic Input Coupler',
+    desc: 'Single-mode fiber (SMF-28) couples coherent laser light into the silicon photonic chip via grating couplers. The 1550nm C-band wavelength minimizes absorption loss in silicon waveguides.',
+    m1: { val: '1550', label: 'λ (nm)' },
+    m2: { val: '0.2', label: 'dB/km Loss' },
+    m3: { val: '~3', label: 'dB Coupling' },
+  },
+  waveguide: {
+    title: 'Silicon-on-Insulator Waveguide',
+    desc: 'Strip waveguides (450nm × 220nm cross-section) confine light via total internal reflection. Silicon\'s high refractive index (n=3.48) enables tight bends and dense integration.',
+    m1: { val: '3.48', label: 'n (Si)' },
+    m2: { val: '450', label: 'Width (nm)' },
+    m3: { val: '2', label: 'dB/cm Loss' },
+  },
+  splitter: {
+    title: 'Y-Branch Power Splitter',
+    desc: 'Adiabatic Y-junction splits optical power 50:50 into two waveguide arms. Critical for distributing coherent light to parallel processing elements in the photonic AI accelerator.',
+    m1: { val: '50:50', label: 'Split Ratio' },
+    m2: { val: '<0.3', label: 'Excess (dB)' },
+    m3: { val: '40', label: 'nm BW' },
+  },
+  ring: {
+    title: 'Microring Resonator',
+    desc: 'Resonant cavity that selectively couples wavelengths matching its free spectral range. Used for wavelength filtering, weighting in neural network multiply-accumulate operations, and optical switching.',
+    m1: { val: '10', label: 'μm Radius' },
+    m2: { val: '10⁵', label: 'Q-Factor' },
+    m3: { val: '15.6', label: 'nm FSR' },
+  },
+  mzi: {
+    title: 'Mach-Zehnder Interferometer',
+    desc: 'Core compute element for photonic AI. Thermo-optic phase shifters on one arm encode matrix weights. Interference at the output coupler performs analog multiplication at the speed of light.',
+    m1: { val: '10', label: 'GHz Rate' },
+    m2: { val: '30', label: 'dB ER' },
+    m3: { val: '0.5', label: 'π·V (V)' },
+  },
+  detector: {
+    title: 'Germanium Photodetector',
+    desc: 'Ge-on-Si photodiode converts optical output back to electrical signal. Balanced detection from both MZI ports enables differential readout, doubling dynamic range for neural network inference.',
+    m1: { val: '0.8', label: 'A/W Resp.' },
+    m2: { val: '40', label: 'GHz BW' },
+    m3: { val: '-20', label: 'dBm Sens.' },
+  },
+};
+
+// Legend click handlers
+document.querySelectorAll('.legend-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const comp = item.dataset.component;
+    showInfo(comp);
+  });
+});
+
+function showInfo(comp) {
+  const panel = document.getElementById('infoPanel');
+  const info = componentInfo[comp];
+  if (!info) return;
+
+  document.getElementById('infoPanelTitle').textContent = info.title;
+  document.getElementById('infoPanelDesc').textContent = info.desc;
+  document.getElementById('metric1Val').textContent = info.m1.val;
+  document.getElementById('metric1Label').textContent = info.m1.label;
+  document.getElementById('metric2Val').textContent = info.m2.val;
+  document.getElementById('metric2Label').textContent = info.m2.label;
+  document.getElementById('metric3Val').textContent = info.m3.val;
+  document.getElementById('metric3Label').textContent = info.m3.label;
+
+  panel.classList.add('visible');
+
+  clearTimeout(panel._hideTimer);
+  panel._hideTimer = setTimeout(() => panel.classList.remove('visible'), 8000);
+}
+
+// Show fiber info on load
+setTimeout(() => showInfo('fiber'), 1500);
+setTimeout(() => showInfo('ring'), 6000);
+setTimeout(() => showInfo('mzi'), 12000);
+
+// ── CONTROLS ──
+let paused = false;
+let speedMult = 1;
+let viewMode = 0;
+const views = [
+  { pos: [0, 18, 28], target: [0, 0, 2] },
+  { pos: [0, 30, 5], target: [0, 0, 0] },
+  { pos: [-5, 8, 15], target: [0, 0, 0] },
+  { pos: [15, 10, 10], target: [5, 0, 0] },
+];
+
+document.getElementById('btnPause').addEventListener('click', function() {
+  paused = !paused;
+  this.textContent = paused ? '▶' : '❚❚';
+  this.classList.toggle('active');
+});
+
+document.getElementById('btnSpeed').addEventListener('click', function() {
+  speedMult = speedMult === 1 ? 2 : speedMult === 2 ? 4 : 1;
+  this.textContent = speedMult + '×';
+});
+
+document.getElementById('btnView').addEventListener('click', function() {
+  viewMode = (viewMode + 1) % views.length;
+  const v = views[viewMode];
+  gsap.to(targetCamPos, {
+    x: v.pos[0], y: v.pos[1], z: v.pos[2],
+    duration: 2, ease: 'power3.inOut'
+  });
+});
+
+// ── ANIMATION LOOP ──
+const clock = new THREE.Clock();
+let photonsArrived = 0;
+let frameCount = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  if (paused) return;
+
+  const elapsed = clock.getElapsedTime();
+  const delta = clock.getDelta();
+  frameCount++;
+
+  // Update photon positions
+  const positions = photonGeo.attributes.position.array;
+  const colors = photonGeo.attributes.color.array;
+
+  for (let i = 0; i < PHOTON_COUNT; i++) {
+    const pd = photonData[i];
+    pd.t += pd.speed * speedMult;
+
+    // Photon reached end — reset
+    if (pd.t >= 1) {
+      pd.t = 0;
+      pd.pathIdx = weightedRandom(circuitPaths.map(p => p.weight));
+      pd.speed = 0.001 + Math.random() * 0.003;
+      photonsArrived++;
+
+      // Update color for new path
+      const col = circuitPaths[pd.pathIdx].color;
+      colors[i * 3] = col.r;
+      colors[i * 3 + 1] = col.g;
+      colors[i * 3 + 2] = col.b;
+    }
+
+    const point = pathCurves[pd.pathIdx].getPoint(pd.t);
+    positions[i * 3] = point.x;
+    positions[i * 3 + 1] = point.y + Math.sin(elapsed * 8 + pd.phase) * 0.02;
+    positions[i * 3 + 2] = point.z;
+  }
+
+  photonGeo.attributes.position.needsUpdate = true;
+  photonGeo.attributes.color.needsUpdate = true;
+
+  // Photon pulsing
+  photonMat.size = 0.25 + Math.sin(elapsed * 3) * 0.05;
+
+  // Dust drift
+  const dustPositions = dustGeo.attributes.position.array;
+  for (let i = 0; i < dustCount; i++) {
+    dustPositions[i * 3 + 1] += 0.002;
+    dustPositions[i * 3] += Math.sin(elapsed * 0.3 + i * 0.01) * 0.001;
+    if (dustPositions[i * 3 + 1] > 15) dustPositions[i * 3 + 1] = 0;
+  }
+  dustGeo.attributes.position.needsUpdate = true;
+
+  // Ring resonator rotation glow
+  ringMesh.material.emissiveIntensity = 0.3 + Math.sin(elapsed * 2) * 0.15;
+
+  // Heater pulsing
+  heater.material.emissiveIntensity = 0.3 + Math.sin(elapsed * 4) * 0.2;
+
+  // Detector glow when photons arrive
+  if (photonsArrived > 0) {
+    detector1.children[0].material.emissiveIntensity = 0.3 + Math.sin(elapsed * 6) * 0.2;
+    detector2.children[0].material.emissiveIntensity = 0.3 + Math.sin(elapsed * 6 + 1) * 0.2;
+  }
+
+  // Camera smooth follow
+  camera.position.x += (targetCamPos.x + mouse.x * 3 - camera.position.x) * 0.02;
+  camera.position.y += (targetCamPos.y + mouse.y * 2 - camera.position.y) * 0.02;
+  camera.position.z += (targetCamPos.z - camera.position.z) * 0.02;
+  camera.lookAt(0, 0, 0);
+
+  // Update HUD
+  if (frameCount % 10 === 0) {
+    document.getElementById('photonCount').textContent = PHOTON_COUNT;
+    document.getElementById('throughput').textContent =
+      (photonsArrived / Math.max(elapsed, 0.1)).toFixed(0);
+  }
+
+  renderer.render(scene, camera);
+}
+
+// ── ENTRANCE ANIMATION ──
+gsap.from(camera.position, {
+  y: 40, z: 40, duration: 3, ease: 'power3.out',
+});
+
+// Stagger waveguide reveals
+[fiberInput, topBranch, bottomBranch, ringBusTop, mziUpperArm, mziLowerArm, outputTop, outputBottom, crossConnect].forEach((wg, i) => {
+  if (wg && wg.mat) {
+    wg.mat.opacity = 0;
+    gsap.to(wg.mat, { opacity: 0.85, duration: 1.2, delay: 0.5 + i * 0.2, ease: 'power2.out' });
+  }
+});
+
+// Photon fade in
+photonMat.opacity = 0;
+gsap.to(photonMat, { opacity: 0.9, duration: 2, delay: 1.5, ease: 'power2.out' });
+
+animate();
+
+// ── RESPONSIVE ──
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>

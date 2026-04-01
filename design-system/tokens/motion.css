@@ -1,0 +1,61 @@
+/* ═══════════════════════════════════════════════════════
+   PHOTONICS EQUILIBRIUM — MOTION TOKENS
+   Animation timing, easing, and photon behavior definitions
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Duration Scale ── */
+  --duration-instant:   0ms;
+  --duration-fast:      150ms;
+  --duration-normal:    300ms;
+  --duration-slow:      600ms;
+  --duration-dramatic:  1200ms;
+  --duration-cinematic: 2000ms;
+
+  /* ── Easing Functions ── */
+  --ease-default:    cubic-bezier(0.4, 0, 0.2, 1);    /* Material standard */
+  --ease-in:         cubic-bezier(0.4, 0, 1, 1);
+  --ease-out:        cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out:     cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring:     cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-dramatic:   cubic-bezier(0.16, 1, 0.3, 1);    /* Expo out */
+  --ease-bounce:     cubic-bezier(0.34, 1.8, 0.64, 1);
+  --ease-smooth:     cubic-bezier(0.25, 0.1, 0.25, 1);
+
+  /* ── Photon Animation Parameters ── */
+  --photon-speed-crawl:     0.0005;   /* Ultra-slow educational */
+  --photon-speed-slow:      0.001;    /* Detailed inspection */
+  --photon-speed-normal:    0.003;    /* Default simulation */
+  --photon-speed-fast:      0.008;    /* Fast-forward */
+  --photon-speed-turbo:     0.015;    /* Maximum throughput view */
+
+  --photon-pulse-frequency: 3;        /* Hz — intensity oscillation */
+  --photon-trail-frames:    8;        /* Persistence frames */
+  --photon-spawn-rate:      0.02;     /* Per-frame probability */
+
+  /* ── Glow Animation ── */
+  --glow-pulse-min:   0.3;   /* Minimum emissive intensity */
+  --glow-pulse-max:   0.6;   /* Maximum emissive intensity */
+  --glow-pulse-speed: 1.5s;  /* Full cycle duration */
+
+  /* ── Component Transitions ── */
+  --transition-hover:    var(--duration-fast) var(--ease-default);
+  --transition-panel:    var(--duration-normal) var(--ease-dramatic);
+  --transition-reveal:   var(--duration-slow) var(--ease-dramatic);
+  --transition-camera:   var(--duration-cinematic) var(--ease-smooth);
+
+  /* ── Reduced Motion ── */
+  /* All animations respect prefers-reduced-motion */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast:      0ms;
+    --duration-normal:    0ms;
+    --duration-slow:      0ms;
+    --duration-dramatic:  0ms;
+    --duration-cinematic: 0ms;
+    --photon-speed-normal: 0.001;
+    --glow-pulse-speed:   0ms;
+  }
+}

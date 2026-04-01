@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photonics Equilibrium — System Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface-2: #1a1a28;
+    --border: #2a2a3a;
+    --text: #e8e8f0;
+    --text-dim: #7a7a90;
+    --accent-blue: #4a9eff;
+    --accent-purple: #9b6dff;
+    --accent-green: #4ade80;
+    --accent-orange: #ff8a4a;
+    --accent-red: #ff5a6a;
+    --accent-cyan: #22d3ee;
+    --accent-yellow: #fbbf24;
+    --glow-blue: rgba(74,158,255,0.15);
+    --glow-purple: rgba(155,109,255,0.15);
+    --glow-green: rgba(74,222,128,0.12);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+  .noise {
+    position: fixed; inset: 0; z-index: 0; opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  /* Header */
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 2rem;
+    display: flex; align-items: center; gap: 2rem;
+  }
+  header h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.5rem; font-weight: 400; letter-spacing: -0.02em;
+  }
+  header h1 span { color: var(--accent-blue); }
+  .nav-tabs {
+    display: flex; gap: 0.25rem;
+  }
+  .nav-tab {
+    padding: 0.5rem 1rem; border-radius: 6px;
+    font-size: 0.7rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em;
+    cursor: pointer; transition: all 0.2s;
+    background: transparent; border: 1px solid transparent; color: var(--text-dim);
+  }
+  .nav-tab:hover { background: var(--surface); color: var(--text); }
+  .nav-tab.active {
+    background: var(--surface-2); border-color: var(--border);
+    color: var(--accent-blue);
+  }
+
+  /* Diagram panels */
+  .diagram-panel { display: none; padding: 2rem; position: relative; z-index: 1; }
+  .diagram-panel.active { display: block; }
+
+  /* SVG Architecture Diagram */
+  .arch-container {
+    width: 100%; max-width: 1400px; margin: 0 auto;
+  }
+  .arch-container svg { width: 100%; height: auto; }
+
+  /* Component blocks */
+  .block {
+    rx: 8; ry: 8; stroke-width: 1.5;
+    transition: all 0.3s;
+  }
+  .block:hover { filter: brightness(1.3); cursor: pointer; }
+  .block-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.05em;
+    fill: currentColor;
+  }
+  .block-sublabel {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; font-weight: 300;
+    fill: currentColor; opacity: 0.6;
+  }
+  .flow-arrow {
+    stroke-width: 2; fill: none;
+    marker-end: url(#arrowhead);
+  }
+  .flow-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px; fill: var(--text-dim);
+  }
+
+  /* Gantt */
+  .gantt-row {
+    display: grid; grid-template-columns: 200px 1fr; gap: 1rem;
+    align-items: center; padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(42,42,58,0.3);
+    transition: background 0.15s;
+  }
+  .gantt-row:hover { background: var(--surface); }
+  .gantt-label { font-size: 0.65rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gantt-bar-container { position: relative; height: 24px; }
+  .gantt-bar {
+    position: absolute; height: 100%; border-radius: 4px;
+    transition: all 0.3s; cursor: pointer;
+    display: flex; align-items: center; padding: 0 6px;
+    font-size: 0.55rem; font-weight: 500; color: rgba(255,255,255,0.9);
+    overflow: hidden; white-space: nowrap;
+  }
+  .gantt-bar:hover { transform: scaleY(1.2); z-index: 10; }
+  .gantt-phase {
+    font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.15em; padding: 0.8rem 0 0.3rem;
+    grid-column: 1 / -1;
+  }
+  .gantt-header {
+    display: grid; grid-template-columns: 200px 1fr; gap: 1rem;
+    padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);
+    margin-bottom: 0.5rem;
+  }
+  .gantt-days {
+    display: flex; justify-content: space-between;
+    font-size: 0.55rem; color: var(--text-dim);
+  }
+
+  /* Info panel */
+  .info-tooltip {
+    position: fixed; z-index: 200;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 1rem;
+    max-width: 300px; font-size: 0.7rem;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    pointer-events: none; opacity: 0; transition: opacity 0.15s;
+  }
+  .info-tooltip.visible { opacity: 1; }
+  .info-tooltip h4 { font-size: 0.75rem; margin-bottom: 0.5rem; color: var(--accent-blue); }
+  .info-tooltip p { color: var(--text-dim); line-height: 1.5; }
+
+  /* Signal path diagram */
+  .signal-svg { width: 100%; max-width: 1200px; margin: 0 auto; display: block; }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex; gap: 2rem; padding: 1.5rem 2rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .stat { text-align: center; }
+  .stat-value {
+    font-size: 1.5rem; font-weight: 700;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .stat-label { font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 0.2rem; }
+
+  /* Component legend */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 1rem; padding: 1rem 0;
+    font-size: 0.65rem;
+  }
+  .legend-item { display: flex; align-items: center; gap: 0.4rem; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* Section title */
+  .section-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 2rem; font-weight: 400; margin-bottom: 1.5rem;
+    letter-spacing: -0.03em;
+  }
+  .section-title span { color: var(--accent-purple); }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .animate-in { animation: fadeIn 0.5s ease both; }
+
+  /* Photonic component icons */
+  .photon-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 6px;
+    font-size: 14px;
+  }
+
+  /* Port spec table */
+  .port-table { width: 100%; max-width: 1200px; margin: 1rem auto; border-collapse: collapse; }
+  .port-table th {
+    text-align: left; font-size: 0.6rem; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--text-dim);
+    padding: 0.6rem; border-bottom: 1px solid var(--border);
+  }
+  .port-table td {
+    padding: 0.5rem 0.6rem; font-size: 0.7rem;
+    border-bottom: 1px solid rgba(42,42,58,0.3);
+  }
+  .port-table tr:hover { background: var(--surface); }
+  .port-badge {
+    display: inline-block; padding: 2px 6px; border-radius: 3px;
+    font-size: 0.55rem; font-weight: 600; margin: 1px;
+  }
+  .port-in { background: rgba(74,158,255,0.15); color: var(--accent-blue); }
+  .port-out { background: rgba(74,222,128,0.12); color: var(--accent-green); }
+  .port-bidi { background: rgba(155,109,255,0.15); color: var(--accent-purple); }
+  .port-elec { background: rgba(255,138,74,0.15); color: var(--accent-orange); }
+</style>
+</head>
+<body>
+<div class="noise"></div>
+
+<header>
+  <h1>Photonics <span>Equilibrium</span></h1>
+  <div class="nav-tabs">
+    <div class="nav-tab active" data-panel="system">System Architecture</div>
+    <div class="nav-tab" data-panel="ml">ML Pipeline</div>
+    <div class="nav-tab" data-panel="signal">Signal Path</div>
+    <div class="nav-tab" data-panel="roadmap">Roadmap</div>
+    <div class="nav-tab" data-panel="ports">Port Spec</div>
+  </div>
+</header>
+
+<div class="stats-bar">
+  <div class="stat"><div class="stat-value">23</div><div class="stat-label">Tasks</div></div>
+  <div class="stat"><div class="stat-value">11</div><div class="stat-label">Phases</div></div>
+  <div class="stat"><div class="stat-value">~46h</div><div class="stat-label">Estimated</div></div>
+  <div class="stat"><div class="stat-value">15</div><div class="stat-label">Component Types</div></div>
+  <div class="stat"><div class="stat-value">2.2M</div><div class="stat-label">Model Params</div></div>
+  <div class="stat"><div class="stat-value">&lt;5ms</div><div class="stat-label">Inference</div></div>
+</div>
+
+<!-- ============ SYSTEM ARCHITECTURE ============ -->
+<div class="diagram-panel active" id="panel-system">
+  <div class="arch-container animate-in">
+    <h2 class="section-title">System <span>Architecture</span></h2>
+    <svg viewBox="0 0 1200 700" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrowhead" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#4a9eff"/></marker>
+        <marker id="arrowhead-green" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#4ade80"/></marker>
+        <marker id="arrowhead-purple" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#9b6dff"/></marker>
+        <marker id="arrowhead-orange" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#ff8a4a"/></marker>
+        <filter id="glow-b"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="glow-p"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+
+      <!-- Background grid -->
+      <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+        <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(42,42,58,0.3)" stroke-width="0.5"/>
+      </pattern>
+      <rect width="1200" height="700" fill="url(#grid)" opacity="0.5"/>
+
+      <!-- Frontend -->
+      <rect x="30" y="30" width="240" height="200" class="block" fill="#12121a" stroke="#4a9eff"/>
+      <rect x="30" y="30" width="240" height="28" fill="rgba(74,158,255,0.1)" rx="8"/>
+      <text x="50" y="49" class="block-label" fill="#4a9eff">FRONTEND</text>
+      <text x="165" y="49" class="block-sublabel" fill="#4a9eff">React 19 + Vite 7</text>
+      <text x="50" y="80" class="block-sublabel" fill="#e8e8f0">ReactFlow Canvas</text>
+      <text x="50" y="100" class="block-sublabel" fill="#e8e8f0">Zustand Store (nodes, edges, ML state)</text>
+      <text x="50" y="120" class="block-sublabel" fill="#e8e8f0">React Query Hooks (Orval gen)</text>
+      <text x="50" y="140" class="block-sublabel" fill="#e8e8f0">ML Mode Toggle (off/instant/physics)</text>
+      <text x="50" y="160" class="block-sublabel" fill="#e8e8f0">Debounced Prediction Hook (50ms)</text>
+      <text x="50" y="180" class="block-sublabel" fill="#e8e8f0">Inverse Design Panel</text>
+      <text x="50" y="200" class="block-sublabel" fill="#e8e8f0">Canvas Power Overlay</text>
+      <text x="50" y="218" class="block-sublabel" fill="#7a7a90">Tailwind v4 + Wouter routing</text>
+
+      <!-- API Server -->
+      <rect x="340" y="30" width="240" height="200" class="block" fill="#12121a" stroke="#22d3ee"/>
+      <rect x="340" y="30" width="240" height="28" fill="rgba(34,211,238,0.1)" rx="8"/>
+      <text x="360" y="49" class="block-label" fill="#22d3ee">API SERVER</text>
+      <text x="465" y="49" class="block-sublabel" fill="#22d3ee">Express 5</text>
+      <text x="360" y="80" class="block-sublabel" fill="#e8e8f0">Helmet + CORS + Rate Limit</text>
+      <text x="360" y="100" class="block-sublabel" fill="#e8e8f0">Zod Validation Middleware</text>
+      <text x="360" y="120" class="block-sublabel" fill="#e8e8f0">POST /predict (ML forward)</text>
+      <text x="360" y="140" class="block-sublabel" fill="#e8e8f0">POST /simulate (physics)</text>
+      <text x="360" y="160" class="block-sublabel" fill="#e8e8f0">POST /generate (proxy to sidecar)</text>
+      <text x="360" y="180" class="block-sublabel" fill="#e8e8f0">GET /ml/status + /ml/metrics</text>
+      <text x="360" y="200" class="block-sublabel" fill="#e8e8f0">CRUD /builds, /components</text>
+      <text x="360" y="218" class="block-sublabel" fill="#7a7a90">OpenAPI 3.1 + Pino logging</text>
+
+      <!-- ML Inference -->
+      <rect x="650" y="30" width="240" height="130" class="block" fill="#12121a" stroke="#9b6dff"/>
+      <rect x="650" y="30" width="240" height="28" fill="rgba(155,109,255,0.1)" rx="8"/>
+      <text x="670" y="49" class="block-label" fill="#9b6dff">ML INFERENCE</text>
+      <text x="797" y="49" class="block-sublabel" fill="#9b6dff">ONNX Runtime</text>
+      <text x="670" y="80" class="block-sublabel" fill="#e8e8f0">Forward Surrogate (&lt;5ms)</text>
+      <text x="670" y="100" class="block-sublabel" fill="#e8e8f0">Model Versioning + Hot-swap</text>
+      <text x="670" y="120" class="block-sublabel" fill="#e8e8f0">Warm-up at Startup</text>
+      <text x="670" y="145" class="block-sublabel" fill="#ff8a4a">Fallback: Physics Engine</text>
+
+      <!-- Physics Engine -->
+      <rect x="650" y="180" width="240" height="130" class="block" fill="#12121a" stroke="#ff5a6a"/>
+      <rect x="650" y="180" width="240" height="28" fill="rgba(255,90,106,0.1)" rx="8"/>
+      <text x="670" y="199" class="block-label" fill="#ff5a6a">PHYSICS ENGINE</text>
+      <text x="670" y="230" class="block-sublabel" fill="#e8e8f0">Topological Sort (Kahn)</text>
+      <text x="670" y="250" class="block-sublabel" fill="#e8e8f0">Graph Power Propagation</text>
+      <text x="670" y="270" class="block-sublabel" fill="#e8e8f0">Cycle Detection (ring resonators)</text>
+      <text x="670" y="290" class="block-sublabel" fill="#e8e8f0">Coherence: L_c = c / delta_nu</text>
+
+      <!-- Python Sidecar -->
+      <rect x="960" y="30" width="210" height="130" class="block" fill="#12121a" stroke="#b388ff"/>
+      <rect x="960" y="30" width="210" height="28" fill="rgba(179,136,255,0.1)" rx="8"/>
+      <text x="980" y="49" class="block-label" fill="#b388ff">PYTHON SIDECAR</text>
+      <text x="980" y="80" class="block-sublabel" fill="#e8e8f0">FastAPI + Uvicorn</text>
+      <text x="980" y="100" class="block-sublabel" fill="#e8e8f0">cVAE Generator (Stage 1)</text>
+      <text x="980" y="120" class="block-sublabel" fill="#e8e8f0">DiGress Diffusion (Stage 1.5)</text>
+      <text x="980" y="145" class="block-sublabel" fill="#7a7a90">Docker containerized</text>
+
+      <!-- Training Pipeline -->
+      <rect x="960" y="180" width="210" height="130" class="block" fill="#12121a" stroke="#4ade80"/>
+      <rect x="960" y="180" width="210" height="28" fill="rgba(74,222,128,0.1)" rx="8"/>
+      <text x="980" y="199" class="block-label" fill="#4ade80">TRAINING PIPELINE</text>
+      <text x="980" y="230" class="block-sublabel" fill="#e8e8f0">PyTorch + PyG</text>
+      <text x="980" y="250" class="block-sublabel" fill="#e8e8f0">GNN (6 MPNN) + Set Transformer</text>
+      <text x="980" y="270" class="block-sublabel" fill="#e8e8f0">8 Topology Templates</text>
+      <text x="980" y="290" class="block-sublabel" fill="#e8e8f0">ONNX Export (opset 16)</text>
+
+      <!-- Database -->
+      <rect x="340" y="350" width="240" height="150" class="block" fill="#12121a" stroke="#ff8a65"/>
+      <rect x="340" y="350" width="240" height="28" fill="rgba(255,138,101,0.1)" rx="8"/>
+      <text x="360" y="369" class="block-label" fill="#ff8a65">POSTGRESQL</text>
+      <text x="460" y="369" class="block-sublabel" fill="#ff8a65">Drizzle ORM</text>
+      <text x="360" y="400" class="block-sublabel" fill="#e8e8f0">builds (JSONB layout)</text>
+      <text x="360" y="420" class="block-sublabel" fill="#e8e8f0">simulations (results, converged)</text>
+      <text x="360" y="440" class="block-sublabel" fill="#e8e8f0">training_examples (quality gated)</text>
+      <text x="360" y="460" class="block-sublabel" fill="#e8e8f0">ml_models (versioned)</text>
+      <text x="360" y="485" class="block-sublabel" fill="#7a7a90">Index: simulations.build_id</text>
+
+      <!-- Shared Libraries -->
+      <rect x="30" y="350" width="240" height="150" class="block" fill="#12121a" stroke="#4dd0e1"/>
+      <rect x="30" y="350" width="240" height="28" fill="rgba(77,208,225,0.1)" rx="8"/>
+      <text x="50" y="369" class="block-label" fill="#4dd0e1">SHARED LIBRARIES</text>
+      <text x="50" y="400" class="block-sublabel" fill="#e8e8f0">@workspace/ml-models</text>
+      <text x="60" y="416" class="block-sublabel" fill="#7a7a90">Port Spec + Graph Encoder + Types</text>
+      <text x="50" y="436" class="block-sublabel" fill="#e8e8f0">@workspace/api-spec</text>
+      <text x="60" y="452" class="block-sublabel" fill="#7a7a90">OpenAPI 3.1 + Orval codegen</text>
+      <text x="50" y="472" class="block-sublabel" fill="#e8e8f0">@workspace/db</text>
+      <text x="60" y="488" class="block-sublabel" fill="#7a7a90">Drizzle schema + Zod schemas</text>
+
+      <!-- Observability -->
+      <rect x="650" y="350" width="240" height="100" class="block" fill="#12121a" stroke="#fbbf24"/>
+      <rect x="650" y="350" width="240" height="28" fill="rgba(251,191,36,0.1)" rx="8"/>
+      <text x="670" y="369" class="block-label" fill="#fbbf24">OBSERVABILITY</text>
+      <text x="670" y="400" class="block-sublabel" fill="#e8e8f0">Inference Metrics (P50/P95/P99)</text>
+      <text x="670" y="420" class="block-sublabel" fill="#e8e8f0">Prediction vs Engine Divergence</text>
+      <text x="670" y="440" class="block-sublabel" fill="#e8e8f0">Active Learning Quality Gates</text>
+
+      <!-- Flow arrows -->
+      <path d="M 270 130 L 340 130" class="flow-arrow" stroke="#4a9eff" marker-end="url(#arrowhead)"/>
+      <text x="278" y="122" class="flow-label">REST 50ms debounce</text>
+
+      <path d="M 580 80 L 650 80" class="flow-arrow" stroke="#9b6dff" marker-end="url(#arrowhead-purple)"/>
+      <text x="588" y="72" class="flow-label">/predict</text>
+
+      <path d="M 580 200 L 650 245" class="flow-arrow" stroke="#ff5a6a" marker-end="url(#arrowhead)"/>
+      <text x="588" y="210" class="flow-label">/simulate</text>
+
+      <path d="M 580 140 L 620 90 L 650 90" class="flow-arrow" stroke="transparent"/>
+      <path d="M 580 120 Q 930 60 960 80" class="flow-arrow" stroke="#b388ff" marker-end="url(#arrowhead-purple)" stroke-dasharray="4 4"/>
+      <text x="750" y="55" class="flow-label">HTTP proxy /generate</text>
+
+      <path d="M 890 250 L 960 250" class="flow-arrow" stroke="#4ade80" marker-end="url(#arrowhead-green)"/>
+      <text x="898" y="242" class="flow-label">Training data</text>
+
+      <path d="M 1065 180 L 1065 160 Q 1065 150 1055 150 L 900 95 Q 890 90 890 80 L 890 80" class="flow-arrow" stroke="#4ade80" marker-end="url(#arrowhead-green)" stroke-dasharray="4 4"/>
+      <text x="940" y="140" class="flow-label">.onnx model file</text>
+
+      <path d="M 460 230 L 460 350" class="flow-arrow" stroke="#ff8a65" marker-end="url(#arrowhead-orange)"/>
+      <text x="468" y="290" class="flow-label">Drizzle ORM</text>
+
+      <path d="M 150 230 L 150 260 Q 150 270 160 270 L 340 270 Q 350 270 350 260 L 350 230" class="flow-arrow" stroke="#4dd0e1" stroke-dasharray="3 3" marker-end="url(#arrowhead)"/>
+      <text x="200" y="262" class="flow-label">Shared types + codegen</text>
+
+      <path d="M 770 310 L 770 350" class="flow-arrow" stroke="#fbbf24" marker-end="url(#arrowhead-orange)"/>
+    </svg>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#4a9eff"></div>Frontend</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#22d3ee"></div>API Server</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#9b6dff"></div>ML Inference</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ff5a6a"></div>Physics Engine</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#b388ff"></div>Python Sidecar</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#4ade80"></div>Training Pipeline</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ff8a65"></div>Database</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#fbbf24"></div>Observability</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ML PIPELINE ============ -->
+<div class="diagram-panel" id="panel-ml">
+  <div class="arch-container animate-in">
+    <h2 class="section-title">ML <span>Pipeline</span></h2>
+    <svg viewBox="0 0 1200 600" xmlns="http://www.w3.org/2000/svg">
+      <rect width="1200" height="600" fill="url(#grid)" opacity="0.5"/>
+
+      <!-- Data Factory -->
+      <rect x="30" y="30" width="260" height="240" class="block" fill="#12121a" stroke="#4ade80"/>
+      <rect x="30" y="30" width="260" height="28" fill="rgba(74,222,128,0.1)" rx="8"/>
+      <text x="50" y="49" class="block-label" fill="#4ade80">DATA FACTORY</text>
+      <text x="50" y="80" class="block-sublabel" fill="#e8e8f0">8 Topology Templates:</text>
+      <text x="60" y="96" class="block-sublabel" fill="#7a7a90">linear_chain, mzi_interferometer,</text>
+      <text x="60" y="110" class="block-sublabel" fill="#7a7a90">ring_filter, amplified_link,</text>
+      <text x="60" y="124" class="block-sublabel" fill="#7a7a90">cascaded_filters, star_coupler,</text>
+      <text x="60" y="138" class="block-sublabel" fill="#7a7a90">isolator_chain, modulator_link</text>
+      <text x="50" y="164" class="block-sublabel" fill="#e8e8f0">Circuit Generator</text>
+      <text x="60" y="180" class="block-sublabel" fill="#7a7a90">Randomize params within ranges</text>
+      <text x="60" y="194" class="block-sublabel" fill="#7a7a90">Validate port connections</text>
+      <text x="50" y="218" class="block-sublabel" fill="#e8e8f0">Quality Gates (5 checks)</text>
+      <text x="50" y="252" class="block-sublabel" fill="#4ade80">Output: 500K-1M JSONL</text>
+
+      <!-- Encoding -->
+      <rect x="330" y="30" width="200" height="170" class="block" fill="#12121a" stroke="#22d3ee"/>
+      <rect x="330" y="30" width="200" height="28" fill="rgba(34,211,238,0.1)" rx="8"/>
+      <text x="350" y="49" class="block-label" fill="#22d3ee">GRAPH ENCODING</text>
+      <text x="350" y="80" class="block-sublabel" fill="#e8e8f0">Node Features [29d]:</text>
+      <text x="360" y="96" class="block-sublabel" fill="#4a9eff">One-hot type [15d]</text>
+      <text x="360" y="112" class="block-sublabel" fill="#4ade80">Normalized params [14d]</text>
+      <text x="350" y="136" class="block-sublabel" fill="#e8e8f0">Edge Features:</text>
+      <text x="360" y="152" class="block-sublabel" fill="#9b6dff">Port one-hot [2 x vocab]</text>
+      <text x="350" y="180" class="block-sublabel" fill="#e8e8f0">COO edge index format</text>
+
+      <!-- Forward Model -->
+      <rect x="570" y="30" width="280" height="250" class="block" fill="#12121a" stroke="#9b6dff"/>
+      <rect x="570" y="30" width="280" height="28" fill="rgba(155,109,255,0.1)" rx="8"/>
+      <text x="590" y="49" class="block-label" fill="#9b6dff">FORWARD SURROGATE</text>
+      <text x="755" y="49" class="block-sublabel" fill="#9b6dff">~2.2M params</text>
+
+      <!-- Model layers -->
+      <rect x="590" y="68" width="240" height="22" rx="4" fill="rgba(74,158,255,0.15)" stroke="rgba(74,158,255,0.3)"/>
+      <text x="600" y="83" class="block-sublabel" fill="#4a9eff">Linear(29 -> 128) Node Encoder</text>
+
+      <rect x="590" y="96" width="240" height="22" rx="4" fill="rgba(155,109,255,0.12)" stroke="rgba(155,109,255,0.3)"/>
+      <text x="600" y="111" class="block-sublabel" fill="#9b6dff">MPNN Layer 1 (GRU aggregation)</text>
+      <rect x="590" y="122" width="240" height="22" rx="4" fill="rgba(155,109,255,0.10)" stroke="rgba(155,109,255,0.25)"/>
+      <text x="600" y="137" class="block-sublabel" fill="#9b6dff">MPNN Layer 2 (GRU aggregation)</text>
+      <rect x="590" y="148" width="240" height="22" rx="4" fill="rgba(155,109,255,0.08)" stroke="rgba(155,109,255,0.2)"/>
+      <text x="600" y="163" class="block-sublabel" fill="#9b6dff">MPNN Layers 3-6 (GRU aggregation)</text>
+
+      <!-- Split to two heads -->
+      <rect x="590" y="184" width="115" height="36" rx="4" fill="rgba(74,222,128,0.12)" stroke="rgba(74,222,128,0.3)"/>
+      <text x="600" y="198" class="block-sublabel" fill="#4ade80">Per-Node Head</text>
+      <text x="600" y="212" class="block-sublabel" fill="#7a7a90">128->64->4</text>
+
+      <rect x="715" y="184" width="115" height="36" rx="4" fill="rgba(251,191,36,0.12)" stroke="rgba(251,191,36,0.3)"/>
+      <text x="725" y="198" class="block-sublabel" fill="#fbbf24">Set Transformer</text>
+      <text x="725" y="212" class="block-sublabel" fill="#7a7a90">2-layer, 4 heads</text>
+
+      <text x="590" y="242" class="block-sublabel" fill="#e8e8f0">Node: [power, loss, phase, status]</text>
+      <text x="590" y="260" class="block-sublabel" fill="#e8e8f0">Global: [eqScore, sysLoss, outPower, SNR]</text>
+
+      <!-- ONNX Export -->
+      <rect x="890" y="30" width="280" height="140" class="block" fill="#12121a" stroke="#fbbf24"/>
+      <rect x="890" y="30" width="280" height="28" fill="rgba(251,191,36,0.1)" rx="8"/>
+      <text x="910" y="49" class="block-label" fill="#fbbf24">ONNX EXPORT</text>
+      <text x="910" y="80" class="block-sublabel" fill="#ff5a6a">1. Rewrite scatter ops</text>
+      <text x="920" y="96" class="block-sublabel" fill="#7a7a90">scatter_add -> index_add_</text>
+      <text x="910" y="116" class="block-sublabel" fill="#e8e8f0">2. torch.onnx.export (opset 16)</text>
+      <text x="910" y="136" class="block-sublabel" fill="#e8e8f0">3. Numerical equivalence test</text>
+      <text x="920" y="152" class="block-sublabel" fill="#4ade80">max diff &lt; 1e-5 (100 circuits)</text>
+
+      <!-- cVAE -->
+      <rect x="570" y="320" width="280" height="200" class="block" fill="#12121a" stroke="#b388ff"/>
+      <rect x="570" y="320" width="280" height="28" fill="rgba(179,136,255,0.1)" rx="8"/>
+      <text x="590" y="339" class="block-label" fill="#b388ff">GENERATIVE MODEL</text>
+      <text x="590" y="370" class="block-sublabel" fill="#e8e8f0">Stage 1: Conditional VAE</text>
+      <text x="600" y="386" class="block-sublabel" fill="#7a7a90">GNN Encoder -> Latent z</text>
+      <text x="600" y="402" class="block-sublabel" fill="#7a7a90">Autoregressive Decoder</text>
+      <text x="600" y="418" class="block-sublabel" fill="#7a7a90">Port Spec Validity Mask</text>
+      <text x="590" y="445" class="block-sublabel" fill="#ff8a4a">Stage 1.5: DiGress Diffusion</text>
+      <text x="600" y="461" class="block-sublabel" fill="#7a7a90">Discrete graph diffusion</text>
+      <text x="600" y="477" class="block-sublabel" fill="#7a7a90">Better diversity + quality</text>
+      <text x="590" y="504" class="block-sublabel" fill="#ff5a6a">Trigger: validity &lt; 95% or diversity &lt; 0.6</text>
+
+      <!-- Arrows -->
+      <path d="M 290 150 L 330 150" class="flow-arrow" stroke="#4ade80" marker-end="url(#arrowhead-green)"/>
+      <path d="M 530 100 L 570 100" class="flow-arrow" stroke="#22d3ee" marker-end="url(#arrowhead)"/>
+      <path d="M 850 140 L 890 80" class="flow-arrow" stroke="#9b6dff" marker-end="url(#arrowhead-purple)"/>
+      <path d="M 290 250 L 410 320 L 570 380" class="flow-arrow" stroke="#b388ff" stroke-dasharray="4 4" marker-end="url(#arrowhead-purple)"/>
+      <text x="380" y="310" class="flow-label">Same training data</text>
+
+      <!-- ONNX to Node.js -->
+      <rect x="890" y="200" width="280" height="60" class="block" fill="#12121a" stroke="#4a9eff"/>
+      <text x="910" y="225" class="block-label" fill="#4a9eff">NODE.JS RUNTIME</text>
+      <text x="910" y="248" class="block-sublabel" fill="#e8e8f0">onnxruntime-node (&lt;5ms inference)</text>
+      <path d="M 1030 170 L 1030 200" class="flow-arrow" stroke="#fbbf24" marker-end="url(#arrowhead-orange)"/>
+
+      <!-- Sidecar -->
+      <rect x="890" y="320" width="280" height="60" class="block" fill="#12121a" stroke="#b388ff"/>
+      <text x="910" y="345" class="block-label" fill="#b388ff">FASTAPI SIDECAR</text>
+      <text x="910" y="368" class="block-sublabel" fill="#e8e8f0">POST /generate (Docker container)</text>
+      <path d="M 850 420 L 890 370" class="flow-arrow" stroke="#b388ff" marker-end="url(#arrowhead-purple)"/>
+    </svg>
+  </div>
+</div>
+
+<!-- ============ SIGNAL PATH ============ -->
+<div class="diagram-panel" id="panel-signal">
+  <div class="arch-container animate-in">
+    <h2 class="section-title">Physics Engine — <span>Signal Propagation</span></h2>
+    <svg viewBox="0 0 1200 500" xmlns="http://www.w3.org/2000/svg">
+      <rect width="1200" height="500" fill="url(#grid)" opacity="0.5"/>
+
+      <!-- Example circuit visual -->
+      <text x="30" y="30" class="block-label" fill="#4a9eff">EXAMPLE CIRCUIT</text>
+
+      <!-- Laser -->
+      <rect x="30" y="50" width="100" height="50" rx="6" fill="#12121a" stroke="#ff5a6a" stroke-width="2"/>
+      <text x="50" y="72" font-family="JetBrains Mono" font-size="9" fill="#ff5a6a" font-weight="700">LASER</text>
+      <text x="50" y="88" font-family="JetBrains Mono" font-size="7" fill="#7a7a90">10 dBm out</text>
+      <circle cx="130" cy="75" r="4" fill="#ff5a6a"/>
+
+      <!-- Arrow with power label -->
+      <line x1="134" y1="75" x2="180" y2="75" stroke="#ff5a6a" stroke-width="2" marker-end="url(#arrowhead)"/>
+      <text x="142" y="67" font-family="JetBrains Mono" font-size="7" fill="#4ade80">10 dBm</text>
+
+      <!-- Waveguide -->
+      <rect x="180" y="50" width="120" height="50" rx="6" fill="#12121a" stroke="#4a9eff" stroke-width="2"/>
+      <text x="200" y="72" font-family="JetBrains Mono" font-size="9" fill="#4a9eff" font-weight="700">WAVEGUIDE</text>
+      <text x="200" y="88" font-family="JetBrains Mono" font-size="7" fill="#7a7a90">-2 dB loss</text>
+      <circle cx="180" cy="75" r="4" fill="#4a9eff"/>
+      <circle cx="300" cy="75" r="4" fill="#4a9eff"/>
+
+      <line x1="304" y1="75" x2="350" y2="75" stroke="#4a9eff" stroke-width="2" marker-end="url(#arrowhead)"/>
+      <text x="310" y="67" font-family="JetBrains Mono" font-size="7" fill="#4ade80">8 dBm</text>
+
+      <!-- Beam Splitter -->
+      <rect x="350" y="40" width="120" height="70" rx="6" fill="#12121a" stroke="#9b6dff" stroke-width="2"/>
+      <text x="366" y="65" font-family="JetBrains Mono" font-size="9" fill="#9b6dff" font-weight="700">BEAM SPLITTER</text>
+      <text x="370" y="82" font-family="JetBrains Mono" font-size="7" fill="#7a7a90">50:50, -0.3 dB</text>
+      <text x="370" y="96" font-family="JetBrains Mono" font-size="7" fill="#7a7a90">2 outputs</text>
+
+      <line x1="470" y1="55" x2="520" y2="40" stroke="#9b6dff" stroke-width="2" marker-end="url(#arrowhead-purple)"/>
+      <text x="478" y="38" font-family="JetBrains Mono" font-size="7" fill="#4ade80">~4.7 dBm</text>
+      <line x1="470" y1="95" x2="520" y2="110" stroke="#9b6dff" stroke-width="2" marker-end="url(#arrowhead-purple)"/>
+      <text x="478" y="120" font-family="JetBrains Mono" font-size="7" fill="#4ade80">~4.7 dBm</text>
+
+      <!-- Detectors -->
+      <rect x="520" y="20" width="100" height="40" rx="6" fill="#12121a" stroke="#fbbf24" stroke-width="2"/>
+      <text x="536" y="44" font-family="JetBrains Mono" font-size="9" fill="#fbbf24" font-weight="700">DETECTOR 1</text>
+      <rect x="520" y="92" width="100" height="40" rx="6" fill="#12121a" stroke="#fbbf24" stroke-width="2"/>
+      <text x="536" y="116" font-family="JetBrains Mono" font-size="9" fill="#fbbf24" font-weight="700">DETECTOR 2</text>
+
+      <!-- Processing Pipeline -->
+      <text x="30" y="175" class="block-label" fill="#22d3ee">PROCESSING PIPELINE</text>
+
+      <!-- Step 1: Validate -->
+      <rect x="30" y="190" width="160" height="70" rx="6" fill="#12121a" stroke="#22d3ee"/>
+      <text x="50" y="215" font-family="JetBrains Mono" font-size="10" fill="#22d3ee" font-weight="600">1. VALIDATE</text>
+      <text x="50" y="235" font-family="JetBrains Mono" font-size="8" fill="#7a7a90">Has laser source?</text>
+      <text x="50" y="248" font-family="JetBrains Mono" font-size="8" fill="#7a7a90">Has connections?</text>
+
+      <path d="M 190 225 L 230 225" class="flow-arrow" stroke="#22d3ee" marker-end="url(#arrowhead)"/>
+
+      <!-- Step 2: Build Map -->
+      <rect x="230" y="190" width="160" height="70" rx="6" fill="#12121a" stroke="#4a9eff"/>
+      <text x="250" y="215" font-family="JetBrains Mono" font-size="10" fill="#4a9eff" font-weight="600">2. BUILD MAP</text>
+      <text x="250" y="235" font-family="JetBrains Mono" font-size="8" fill="#7a7a90">Connection adjacency</text>
+      <text x="250" y="248" font-family="JetBrains Mono" font-size="8" fill="#7a7a90">In-degree per node</text>
+
+      <path d="M 390 225 L 430 225" class="flow-arrow" stroke="#4a9eff" marker-end="url(#arrowhead)"/>
+
+      <!-- Step 3: Topo Sort -->
+      <rect x="430" y="190" width="160" height="70" rx="6" fill="#12121a" stroke="#9b6dff"/>
+      <text x="450" y="215" font-family="JetBrains Mono" font-size="10" fill="#9b6dff" font-weight="600">3. TOPO SORT</text>
+      <text x="450" y="235" font-family="JetBrains Mono" font-size="8" fill="#7a7a90">Kahn's algorithm</text>
+      <text x="450" y="248" font-family="JetBrains Mono" font-size="8" fill="#ff5a6a">Detect cycles</text>
+
+      <path d="M 590 225 L 630 225" class="flow-arrow" stroke="#9b6dff" marker-end="url(#arrowhead-purple)"/>
+
+      <!-- Step 4: Propagate -->
+      <rect x="630" y="190" width="180" height="70" rx="6" fill="#12121a" stroke="#4ade80"/>
+      <text x="650" y="215" font-family="JetBrains Mono" font-size="10" fill="#4ade80" font-weight="600">4. PROPAGATE</text>
+      <text x="650" y="235" font-family="JetBrains Mono" font-size="8" fill="#7a7a90">Read outputPowerMap</text>
+      <text x="650" y="248" font-family="JetBrains Mono" font-size="8" fill="#7a7a90">Apply component physics</text>
+
+      <path d="M 810 225 L 850 225" class="flow-arrow" stroke="#4ade80" marker-end="url(#arrowhead-green)"/>
+
+      <!-- Step 5: Global -->
+      <rect x="850" y="190" width="160" height="70" rx="6" fill="#12121a" stroke="#fbbf24"/>
+      <text x="870" y="215" font-family="JetBrains Mono" font-size="10" fill="#fbbf24" font-weight="600">5. GLOBAL</text>
+      <text x="870" y="235" font-family="JetBrains Mono" font-size="8" fill="#7a7a90">Equilibrium score</text>
+      <text x="870" y="248" font-family="JetBrains Mono" font-size="8" fill="#7a7a90">SNR, coherence</text>
+
+      <!-- Power propagation detail -->
+      <text x="30" y="310" class="block-label" fill="#4ade80">POWER PROPAGATION DETAIL</text>
+      <rect x="30" y="325" width="980" height="160" rx="8" fill="#12121a" stroke="#2a2a3a"/>
+
+      <!-- Component type columns -->
+      <text x="50" y="350" font-family="JetBrains Mono" font-size="9" fill="#ff5a6a" font-weight="600">laser_source</text>
+      <text x="50" y="368" font-family="JetBrains Mono" font-size="7" fill="#7a7a90">out = params.power</text>
+      <text x="50" y="382" font-family="JetBrains Mono" font-size="7" fill="#7a7a90">No input needed</text>
+
+      <text x="200" y="350" font-family="JetBrains Mono" font-size="9" fill="#4a9eff" font-weight="600">waveguide</text>
+      <text x="200" y="368" font-family="JetBrains Mono" font-size="7" fill="#7a7a90">loss = alpha * L/10000</text>
+      <text x="200" y="382" font-family="JetBrains Mono" font-size="7" fill="#7a7a90">out = in - loss</text>
+
+      <text x="370" y="350" font-family="JetBrains Mono" font-size="9" fill="#9b6dff" font-weight="600">beam_splitter</text>
+      <text x="370" y="368" font-family="JetBrains Mono" font-size="7" fill="#7a7a90">ratio * power + loss</text>
+      <text x="370" y="382" font-family="JetBrains Mono" font-size="7" fill="#7a7a90">2 output ports</text>
+
+      <text x="540" y="350" font-family="JetBrains Mono" font-size="9" fill="#4ade80" font-weight="600">optical_amplifier</text>
+      <text x="540" y="368" font-family="JetBrains Mono" font-size="7" fill="#7a7a90">out = in + gain - loss</text>
+      <text x="540" y="382" font-family="JetBrains Mono" font-size="7" fill="#7a7a90">Active component</text>
+
+      <text x="720" y="350" font-family="JetBrains Mono" font-size="9" fill="#fbbf24" font-weight="600">photodetector</text>
+      <text x="720" y="368" font-family="JetBrains Mono" font-size="7" fill="#7a7a90">Optical -> electrical</text>
+      <text x="720" y="382" font-family="JetBrains Mono" font-size="7" fill="#7a7a90">Terminal node</text>
+
+      <text x="880" y="350" font-family="JetBrains Mono" font-size="9" fill="#ff5a6a" font-weight="600">ring_resonator</text>
+      <text x="880" y="368" font-family="JetBrains Mono" font-size="7" fill="#ff5a6a">FEEDBACK LOOP</text>
+      <text x="880" y="382" font-family="JetBrains Mono" font-size="7" fill="#7a7a90">Cycle: -100 dBm input</text>
+
+      <!-- Key formulas -->
+      <text x="50" y="420" font-family="JetBrains Mono" font-size="9" fill="#22d3ee" font-weight="600">KEY FORMULAS</text>
+      <text x="50" y="440" font-family="JetBrains Mono" font-size="8" fill="#e8e8f0">Coherence: L_c = c / delta_nu (mm)</text>
+      <text x="50" y="458" font-family="JetBrains Mono" font-size="8" fill="#e8e8f0">dBm to Watts: P_w = 10^(P_dBm/10) / 1000</text>
+      <text x="50" y="476" font-family="JetBrains Mono" font-size="8" fill="#e8e8f0">Multi-input: sum in linear domain, convert back</text>
+
+      <text x="500" y="420" font-family="JetBrains Mono" font-size="9" fill="#22d3ee" font-weight="600">EQUILIBRIUM SCORE</text>
+      <text x="500" y="440" font-family="JetBrains Mono" font-size="8" fill="#e8e8f0">Start: 100</text>
+      <text x="500" y="458" font-family="JetBrains Mono" font-size="8" fill="#e8e8f0">-20 per error, -8 per warning</text>
+      <text x="500" y="476" font-family="JetBrains Mono" font-size="8" fill="#e8e8f0">Converged: score >= 85 AND errors = 0</text>
+    </svg>
+  </div>
+</div>
+
+<!-- ============ ROADMAP ============ -->
+<div class="diagram-panel" id="panel-roadmap">
+  <div class="arch-container animate-in">
+    <h2 class="section-title">Implementation <span>Roadmap</span></h2>
+    <div id="gantt-container" style="max-width:1200px; margin:0 auto;"></div>
+  </div>
+</div>
+
+<!-- ============ PORT SPEC ============ -->
+<div class="diagram-panel" id="panel-ports">
+  <div class="arch-container animate-in">
+    <h2 class="section-title">Port <span>Specification</span> — 15 Component Types</h2>
+    <p style="color:var(--text-dim);font-size:0.75rem;margin-bottom:1rem;">Formal port definitions driving: circuit generator, GNN edge encoding, connection validation</p>
+    <table class="port-table">
+      <thead><tr><th>Component</th><th>Category</th><th>Ports</th><th>Feedback</th><th>Notes</th></tr></thead>
+      <tbody id="port-table-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="info-tooltip" id="tooltip"></div>
+
+<script>
+// Tab navigation
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.diagram-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.panel).classList.add('active');
+  });
+});
+
+// Gantt chart data
+const phases = [
+  { name: 'Phase 0 — Ports', color: '#4dd0e1', tasks: [
+    { id: 0, name: 'Port Specification', days: 1, start: 0, done: true },
+  ]},
+  { name: 'Phase 1 — Engine', color: '#ff5a6a', tasks: [
+    { id: 1, name: 'Add Vitest', days: 1, start: 1 },
+    { id: 2, name: 'Fix coherence (C4)', days: 1, start: 2 },
+    { id: 3, name: 'Topo sort + propagation', days: 2, start: 3 },
+    { id: 4, name: 'Edge case tests', days: 1, start: 5 },
+  ]},
+  { name: 'Phase 2 — Security', color: '#22d3ee', tasks: [
+    { id: 5, name: 'Helmet + CORS + Zod', days: 2, start: 2 },
+    { id: 6, name: 'DELETE 404 + cleanup', days: 1, start: 4 },
+  ]},
+  { name: 'Phase 3 — Schema', color: '#ff8a65', tasks: [
+    { id: 7, name: 'converged bool + ML tables', days: 1, start: 5 },
+  ]},
+  { name: 'Phase 4 — ML Types', color: '#4a9eff', tasks: [
+    { id: 8, name: 'Graph encoder/decoder', days: 2, start: 6 },
+  ]},
+  { name: 'Phase 5 — Training', color: '#4ade80', tasks: [
+    { id: '9a', name: 'Python scaffold + generator', days: 3, start: 8 },
+    { id: '9b', name: 'GNN + Set Transformer', days: 2, start: 11 },
+    { id: '9c', name: 'Training loop + sweep', days: 4, start: 13 },
+    { id: '9d', name: 'ONNX export + equiv tests', days: 3, start: 17 },
+  ]},
+  { name: 'Phase 6 — API', color: '#9b6dff', tasks: [
+    { id: 10, name: 'ONNX Runtime wrapper', days: 2, start: 20 },
+    { id: 11, name: 'REST /predict + codegen', days: 2, start: 22 },
+  ]},
+  { name: 'Phase 7 — Frontend', color: '#4a9eff', tasks: [
+    { id: 12, name: 'Zustand ML state', days: 1, start: 24 },
+    { id: 13, name: 'Prediction hook + overlay', days: 3, start: 25 },
+    { id: 14, name: 'Inverse design panel', days: 2, start: 25 },
+  ]},
+  { name: 'Phase 8 — Generative', color: '#b388ff', tasks: [
+    { id: 15, name: 'cVAE model + training', days: 6, start: 13 },
+    { id: 16, name: 'FastAPI sidecar + Docker', days: 3, start: 19 },
+  ]},
+  { name: 'Phase 9 — Observability', color: '#fbbf24', tasks: [
+    { id: 17, name: 'Inference metrics', days: 2, start: 24 },
+    { id: 18, name: 'Active learning gates', days: 2, start: 26 },
+  ]},
+  { name: 'Phase 10 — Verification', color: '#ff5a6a', tasks: [
+    { id: 19, name: 'E2E integration test', days: 2, start: 28 },
+  ]},
+];
+
+const totalDays = 30;
+const ganttEl = document.getElementById('gantt-container');
+
+// Header
+let html = '<div class="gantt-header"><div style="font-size:0.6rem;color:var(--text-dim)">TASK</div><div class="gantt-days">';
+for (let d = 0; d <= totalDays; d += 5) html += `<span>Day ${d}</span>`;
+html += '</div></div>';
+
+phases.forEach(phase => {
+  html += `<div class="gantt-phase" style="color:${phase.color}">${phase.name}</div>`;
+  phase.tasks.forEach(task => {
+    const left = (task.start / totalDays) * 100;
+    const width = (task.days / totalDays) * 100;
+    const opacity = task.done ? 0.5 : 1;
+    const label = task.done ? `T${task.id} (DONE)` : `T${task.id}`;
+    html += `<div class="gantt-row">
+      <div class="gantt-label">${label}: ${task.name}</div>
+      <div class="gantt-bar-container">
+        <div class="gantt-bar" style="left:${left}%;width:${width}%;background:${phase.color};opacity:${opacity}">
+          ${task.days}d
+        </div>
+      </div>
+    </div>`;
+  });
+});
+ganttEl.innerHTML = html;
+
+// Port spec table
+const ports = [
+  { type: 'laser_source', cat: 'Source', ports: [{n:'out',d:'out'}], fb: false, note: 'No inputs — source only' },
+  { type: 'waveguide', cat: 'Passive', ports: [{n:'in',d:'in'},{n:'out',d:'out'}], fb: false, note: 'Pass-through with alpha loss' },
+  { type: 'beam_splitter', cat: 'Splitter', ports: [{n:'in',d:'in'},{n:'out_1',d:'out'},{n:'out_2',d:'out'}], fb: false, note: '1->2 power split by ratio' },
+  { type: 'coupler', cat: 'Coupler', ports: [{n:'in_1',d:'in'},{n:'in_2',d:'in'},{n:'through',d:'out'},{n:'cross',d:'out'}], fb: false, note: '4-port directional coupler' },
+  { type: 'modulator', cat: 'Active', ports: [{n:'in',d:'in'},{n:'electrical',d:'elec'},{n:'out',d:'out'}], fb: false, note: 'Has electrical RF input' },
+  { type: 'photodetector', cat: 'Detector', ports: [{n:'in',d:'in'},{n:'electrical',d:'elec-out'}], fb: false, note: 'Optical -> electrical conversion' },
+  { type: 'optical_amplifier', cat: 'Active', ports: [{n:'in',d:'in'},{n:'out',d:'out'}], fb: false, note: 'Adds gain, compensates loss' },
+  { type: 'phase_shifter', cat: 'Passive', ports: [{n:'in',d:'in'},{n:'out',d:'out'}], fb: false, note: 'Phase only, small insertion loss' },
+  { type: 'filter', cat: 'Passive', ports: [{n:'in',d:'in'},{n:'out',d:'out'},{n:'drop',d:'out'}], fb: false, note: 'Passband + rejected output' },
+  { type: 'isolator', cat: 'Non-reciprocal', ports: [{n:'in',d:'in'},{n:'out',d:'out'}], fb: false, note: 'Unidirectional — blocks reverse' },
+  { type: 'circulator', cat: 'Non-reciprocal', ports: [{n:'port_1',d:'bidi'},{n:'port_2',d:'bidi'},{n:'port_3',d:'bidi'}], fb: false, note: '3-port routing: 1->2->3->1' },
+  { type: 'mzi', cat: 'Interferometric', ports: [{n:'in_1',d:'in'},{n:'in_2',d:'in'},{n:'out_1',d:'out'},{n:'out_2',d:'out'}], fb: false, note: '4-port Mach-Zehnder' },
+  { type: 'ring_resonator', cat: 'Resonant', ports: [{n:'in',d:'in'},{n:'through',d:'out'},{n:'drop',d:'out'}], fb: true, note: 'FEEDBACK — cycle detection needed' },
+  { type: 'grating_coupler', cat: 'Coupling', ports: [{n:'fiber',d:'bidi'},{n:'waveguide',d:'bidi'}], fb: false, note: 'Fiber <-> chip interface' },
+  { type: 'mirror', cat: 'Reflective', ports: [{n:'in',d:'in'},{n:'reflect',d:'out'},{n:'transmit',d:'out'}], fb: false, note: 'Partial reflector (1-R transmitted)' },
+];
+
+const badgeClass = { 'in': 'port-in', 'out': 'port-out', 'bidi': 'port-bidi', 'elec': 'port-elec', 'elec-out': 'port-elec' };
+const badgeLabel = { 'in': 'IN', 'out': 'OUT', 'bidi': 'BIDI', 'elec': 'ELEC IN', 'elec-out': 'ELEC OUT' };
+
+const tbody = document.getElementById('port-table-body');
+ports.forEach(p => {
+  const portBadges = p.ports.map(pt =>
+    `<span class="port-badge ${badgeClass[pt.d]}">${pt.n} (${badgeLabel[pt.d]})</span>`
+  ).join(' ');
+  const fbBadge = p.fb
+    ? '<span style="color:#ff5a6a;font-weight:600">Yes</span>'
+    : '<span style="color:#7a7a90">No</span>';
+  tbody.innerHTML += `<tr>
+    <td style="color:${p.fb ? '#ff5a6a' : '#e8e8f0'};font-weight:600">${p.type}</td>
+    <td style="color:var(--text-dim)">${p.cat}</td>
+    <td>${portBadges}</td>
+    <td>${fbBadge}</td>
+    <td style="color:var(--text-dim)">${p.note}</td>
+  </tr>`;
+});
+</script>
+</body>
+</html>

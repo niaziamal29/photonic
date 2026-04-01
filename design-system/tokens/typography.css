@@ -1,0 +1,84 @@
+/* ═══════════════════════════════════════════════════════
+   PHOTONICS EQUILIBRIUM — TYPOGRAPHY TOKENS
+   ═══════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ── Font Families ── */
+  --font-display:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-body:     'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono:     'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+
+  /* ── Font Sizes ── */
+  --text-2xs:   9px;
+  --text-xs:    10px;
+  --text-sm:    12px;
+  --text-base:  14px;
+  --text-lg:    16px;
+  --text-xl:    20px;
+  --text-2xl:   24px;
+  --text-3xl:   28px;
+  --text-4xl:   36px;
+  --text-5xl:   48px;
+
+  /* ── Font Weights ── */
+  --weight-light:     300;
+  --weight-regular:   400;
+  --weight-medium:    500;
+  --weight-semibold:  600;
+  --weight-bold:      700;
+  --weight-extrabold: 800;
+
+  /* ── Line Heights ── */
+  --leading-tight:    1.2;
+  --leading-snug:     1.35;
+  --leading-normal:   1.5;
+  --leading-relaxed:  1.65;
+
+  /* ── Letter Spacing ── */
+  --tracking-tight:     -0.5px;
+  --tracking-normal:    0;
+  --tracking-wide:      0.5px;
+  --tracking-wider:     1px;
+  --tracking-widest:    1.5px;
+  --tracking-label:     2px;
+
+  /* ── Composite Type Styles ── */
+  /* Hero title */
+  --type-hero-size:     var(--text-4xl);
+  --type-hero-weight:   var(--weight-bold);
+  --type-hero-tracking: var(--tracking-tight);
+  --type-hero-leading:  var(--leading-tight);
+
+  /* Section heading */
+  --type-h1-size:       var(--text-2xl);
+  --type-h1-weight:     var(--weight-semibold);
+  --type-h1-tracking:   var(--tracking-tight);
+
+  /* Component heading */
+  --type-h2-size:       var(--text-lg);
+  --type-h2-weight:     var(--weight-semibold);
+
+  /* Body */
+  --type-body-size:     var(--text-base);
+  --type-body-weight:   var(--weight-regular);
+  --type-body-leading:  var(--leading-relaxed);
+
+  /* Caption / metadata */
+  --type-caption-size:    var(--text-sm);
+  --type-caption-weight:  var(--weight-regular);
+  --type-caption-color:   var(--color-text-secondary);
+
+  /* Monospace metric */
+  --type-metric-size:     var(--text-lg);
+  --type-metric-weight:   var(--weight-semibold);
+  --type-metric-family:   var(--font-mono);
+
+  /* Label / HUD */
+  --type-label-size:      var(--text-xs);
+  --type-label-weight:    var(--weight-medium);
+  --type-label-tracking:  var(--tracking-label);
+  --type-label-transform: uppercase;
+  --type-label-family:    var(--font-mono);
+}
